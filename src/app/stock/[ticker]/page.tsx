@@ -6,11 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PriceChartToggle } from '@/components/price-chart';
-import { TechnicalPanel } from '@/components/technical-panel';
 import { FundamentalPanel } from '@/components/fundamental-panel';
 import { NewsFeed } from '@/components/news-feed';
 import { AIRecommendation } from '@/components/ai-recommendation';
-import { formatCurrency, formatMarketCap, formatPercent, cn } from '@/lib/utils';
 import { fetchQuote, fetchCompanyProfile, fetchBasicFinancials, fetchStockCandles, fetchNews } from '@/lib/finnhub';
 import { prisma } from '@/lib/prisma';
 
@@ -26,11 +24,11 @@ async function getStockData(ticker: string) {
   const now = Math.floor(Date.now() / 1000);
   const oneYearAgo = now - 365 * 24 * 60 * 60;
 
-  let candles = null;
+  let candles: any[] = [];
   try {
     const candleData = await fetchStockCandles(symbol, 'D', oneYearAgo, now);
-    if (candleData.s === 'ok' && candleData.c.length > 0) {
-      candles = candleData.t.map((timestamp, index) => ({
+    if (candleData.s === 'ok' && candleData.c && candleData.c.length > 0) {
+      candles = candleData.t.map((timestamp: any, index: any) => ({
         time: new Date(timestamp * 1000).toISOString().split('T')[0],
         open: candleData.o[index],
         high: candleData.h[index],
@@ -39,39 +37,41 @@ async function getStockData(ticker: string) {
         volume: candleData.v[index],
       }));
     }
-  } catch {
-    console.error('Failed to fetch candles');
+  } catch (e) {
+    console.error('Failed to fetch candles', e);
   }
 
   let news: any[] = [];
   try {
     const newsData = await fetchNews(symbol);
-    news = newsData.slice(0, 10).map((n) => ({
-      id: n.id,
-      headline: n.headling,
-      summary: n.summary,
-      source: n.source,
-      url: n.url,
-      datetime: n.datetime,
-    }));
-  } catch {
-    console.error('Failed to fetch news');
+    if (newsData && newsData.length > 0) {
+      news = newsData.slice(0, 10).map((n: any) => ({
+        id: n.id,
+        headline: n.title,
+        summary: n.summary,
+        source: n.source,
+        url: n.url,
+        datetime: n.published_at,
+      }));
+    }
+  } catch (e) {
+    console.error('Failed to fetch news', e);
   }
 
   let dbStock = null;
   try {
     dbStock = await prisma.stock.findUnique({
       where: { symbol },
-    });
-  } catch {
-    console.error('Failed to fetch stock from DB');
+    }) as any;
+  } catch (e) {
+    console.error('Failed to fetch stock from DB', e);
   }
 
   return {
     stock: {
       symbol: dbStock?.symbol || symbol,
-      name: profile?.name || dbStock?.name || symbol,
-      sector: profile?.finnhubIndustry || financials?.sector || dbStock?.sector || undefined,
+      name: dbStock?.name || symbol,
+      sector: profile?.sector || financials?.sector || dbStock?.sector || undefined,
       industry: financials?.industry || dbStock?.industry || undefined,
       marketCap: profile?.marketCapitalization || dbStock?.marketCap || undefined,
       exchange: profile?.exchange || dbStock?.exchange || undefined,
@@ -80,7 +80,6 @@ async function getStockData(ticker: string) {
       eps: financials?.eps || dbStock?.eps || undefined,
     },
     quote,
-    profile,
     financials,
     candles,
     news,
@@ -117,14 +116,13 @@ export default async function StockPage({ params }: { params: Promise<{ ticker: 
             </div>
             <div className="flex items-baseline gap-4 mt-2">
               <span className="text-2xl font-semibold">
-                {quote?.c ? formatCurrency(quote.c) : '-'}
+                {quote?.c ? `$${quote.c.toFixed(2)}` : '-'}
               </span>
-              <span className={cn(
-                'text-sm',
+              <span className={
                 quote?.d && quote.d > 0 ? 'text-green-500' : 
                 quote?.d && quote.d < 0 ? 'text-red-500' : 'text-muted-foreground'
-              )}>
-                {quote?.d ? formatCurrency(quote.d) : '-'} ({quote?.dp ? formatPercent(quote.dp) : '-'})
+              }>
+                {quote?.d ? `$${quote.d.toFixed(2)}` : '-'} ({quote?.dp ? `${quote.dp >= 0 ? '+' : ''}${quote.dp.toFixed(2)}%` : '-'})
               </span>
             </div>
             <div className="flex gap-4 mt-2 text-sm text-muted-foreground">
@@ -132,29 +130,21 @@ export default async function StockPage({ params }: { params: Promise<{ ticker: 
               <span>•</span>
               <span>{stock.exchange || 'N/A'}</span>
               <span>•</span>
-              <span>{stock.marketCap ? formatMarketCap(stock.marketCap) : 'N/A'}</span>
+              <span>{stock.marketCap ? `$${(stock.marketCap / 1e9).toFixed(1)}B` : 'N/A'}</span>
             </div>
           </div>
 
-          <div>
-            {candles && candles.length > 0 ? (
+          {candles && candles.length > 0 && (
+            <div>
               <PriceChartToggle data={candles} symbol={symbol} height={400} />
-            ) : (
-              <div className="h-[400px] flex items-center justify-center bg-muted/20 rounded-lg">
-                <p className="text-muted-foreground">No chart data available</p>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
 
-          <Tabs defaultValue="technicals">
+          <Tabs defaultValue="fundamentals">
             <TabsList>
-              <TabsTrigger value="technicals">Technical Indicators</TabsTrigger>
               <TabsTrigger value="fundamentals">Fundamentals</TabsTrigger>
               <TabsTrigger value="news">News</TabsTrigger>
             </TabsList>
-            <TabsContent value="technicals" className="mt-4">
-              <TechnicalPanel indicators={null} />
-            </TabsContent>
             <TabsContent value="fundamentals" className="mt-4">
               <FundamentalPanel fundamentals={financials} />
             </TabsContent>
@@ -179,15 +169,15 @@ export default async function StockPage({ params }: { params: Promise<{ ticker: 
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">EPS</span>
-                  <span className="font-medium">{financials?.eps ? formatCurrency(financials.eps) : 'N/A'}</span>
+                  <span className="font-medium">{financials?.eps ? `$${financials.eps.toFixed(2)}` : 'N/A'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">Market Cap</span>
-                  <span className="font-medium">{stock.marketCap ? formatMarketCap(stock.marketCap) : 'N/A'}</span>
+                  <span className="font-medium">{stock.marketCap ? `$${(stock.marketCap / 1e9).toFixed(1)}B` : 'N/A'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">Revenue</span>
-                  <span className="font-medium">{financials?.revenue ? formatMarketCap(financials.revenue) : 'N/A'}</span>
+                  <span className="font-medium">{financials?.revenue ? `$${(financials.revenue / 1e9).toFixed(1)}B` : 'N/A'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">Profit Margin</span>

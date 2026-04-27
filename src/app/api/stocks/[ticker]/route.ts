@@ -6,18 +6,11 @@ import { getCache, setCache } from '@/lib/cache';
 import type { Stock, StockQuote, StockFundamentals, StockPrice, ChartData } from '@/types';
 
 interface StockDetailResponse {
-  stock: Stock & { change?: number; changePercent?: number };
-  quote?: StockQuote;
-  profile?: StockFundamentals;
-  candles?: ChartData[];
-  news?: Array<{
-    id: number;
-    headline: string;
-    summary: string;
-    source: string;
-    url: string;
-    datetime: number;
-  }>;
+  stock: any;
+  quote?: any;
+  profile?: any;
+  candles?: any[];
+  news?: any[];
 }
 
 export async function GET(
@@ -48,8 +41,8 @@ export async function GET(
 
     try {
       const candleData = await fetchStockCandles(symbol, 'D', oneYearAgo, now);
-      if (candleData.s === 'ok' && candleData.c.length > 0) {
-        candles = candleData.t.map((timestamp, index) => ({
+      if (candleData.s === 'ok' && candleData.c && candleData.c.length > 0) {
+        candles = candleData.t.map((timestamp: any, index: any) => ({
           time: new Date(timestamp * 1000).toISOString().split('T')[0],
           open: candleData.o[index],
           high: candleData.h[index],
@@ -58,23 +51,25 @@ export async function GET(
           volume: candleData.v[index],
         }));
       }
-    } catch {
-      console.error('Failed to fetch candles for', symbol);
+    } catch (e) {
+      console.error('Failed to fetch candles for', symbol, e);
     }
 
-    let news: StockDetailResponse['news'] = [];
+    let news: any[] = [];
     try {
       const newsData = await fetchNews(symbol);
-      news = newsData.slice(0, 10).map((n) => ({
-        id: n.id,
-        headline: n.headling,
-        summary: n.summary,
-        source: n.source,
-        url: n.url,
-        datetime: n.datetime,
-      }));
-    } catch {
-      console.error('Failed to fetch news for', symbol);
+      if (newsData && newsData.length > 0) {
+        news = newsData.slice(0, 10).map((n: any) => ({
+          id: n.id,
+          headline: n.title,
+          summary: n.summary,
+          source: n.source,
+          url: n.url,
+          datetime: n.published_at,
+        }));
+      }
+    } catch (e) {
+      console.error('Failed to fetch news for', symbol, e);
     }
 
     let dbStock: Stock | null = null;
@@ -100,12 +95,14 @@ export async function GET(
       changePercent: quote?.dp || undefined,
     };
 
-    const response: StockDetailResponse = {
+    const newsList = news;
+
+    const response = {
       stock,
       quote: quote || undefined,
-      profile: financials as StockFundamentals | undefined,
+      profile: financials as any,
       candles: candles.length > 0 ? candles : undefined,
-      news: news.length > 0 ? news : undefined,
+      news: newsList,
     };
 
     await setCache(cacheKey, response, 15 * 60 * 1000);

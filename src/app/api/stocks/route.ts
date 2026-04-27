@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
         price: quote?.c || stock.price || null,
         change: quote?.d || null,
         changePercent: quote?.dp || null,
-        volume: quote?.t ? Number(0) : stock.volume,
+        volume: stock.volume,
       };
     });
 

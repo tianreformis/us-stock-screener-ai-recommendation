@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchQuote, fetchBasicFinancials, fetchNews, fetchStockCandles } from '@/lib/finnhub';
+import { fetchQuote, fetchBasicFinancials, fetchNews } from '@/lib/finnhub';
 import { generateRecommendation } from '@/lib/mistral';
 import { prisma } from '@/lib/prisma';
 import { getCache, setCache } from '@/lib/cache';
-import { calculateTechnicalIndicators } from '@/lib/indicators';
 import type { Recommendation, TechnicalIndicators, ChartData } from '@/types';
 
 function buildPrompt(
   symbol: string,
   priceData: { c: number; d: number; dp: number; h: number; l: number; o: number },
-  indicators: TechnicalIndicators,
   financials: {
     peRatio?: number;
     eps?: number;
@@ -29,12 +27,6 @@ Analyze the following stock:
 
 Ticker: ${symbol}
 Price Data: ${priceStr}
-Technical Indicators:
-- RSI: ${indicators.rsi.toFixed(2)}
-- EMA20: ${indicators.ema20}
-- EMA50: ${indicators.ema50}
-- EMA200: ${indicators.ema200}
-- MACD: ${indicators.macd.MACD.toFixed(2)} (signal: ${indicators.macd.signal.toFixed(2)}, histogram: ${indicators.macd.histogram.toFixed(2)})
 
 Fundamental Data:
 - P/E Ratio: ${financials.peRatio || 'N/A'}
@@ -49,7 +41,7 @@ Return JSON only with this format:
 {
   "recommendation": "BUY | SELL | HOLD",
   "confidence": number,
-  "technical_analysis": "...",
+  "technical_analysis": "Not available - no historical price data",
   "fundamental_analysis": "...",
   "sentiment_analysis": "...",
   "summary": "short explanation"
@@ -101,38 +93,18 @@ export async function GET(
       }
     }
 
-    const [quote, financials, newsData, candleData]: [any, any, any, any] = await Promise.all([
+    const [quote, financials, newsData]: [any, any, any] = await Promise.all([
       fetchQuote(symbol).catch(() => null),
       fetchBasicFinancials(symbol).catch(() => null),
       fetchNews(symbol).catch(() => []),
-      fetchStockCandles(symbol, 'D', Math.floor(Date.now() / 1000) - 365 * 24 * 60 * 60, Math.floor(Date.now() / 1000)).catch(() => null),
     ]);
 
     if (!quote) {
       return NextResponse.json({ error: 'Failed to fetch stock data' }, { status: 500 });
     }
 
-    const prices: number[] = candleData?.c || [];
-    const chartData: Array<{ date: Date; close: number }> = prices.map((close: number, i: number) => ({
-      date: new Date((candleData?.t?.[i] || 0) * 1000),
-      close,
-    }));
-
-    const indicators = calculateTechnicalIndicators(
-      chartData.map((p) => ({
-        id: '',
-        symbol,
-        date: p.date,
-        open: quote.o,
-        high: quote.h,
-        low: quote.l,
-        close: p.close,
-        volume: 0,
-      }))
-    );
-
-    const news: any[] = newsData.map((n: any) => ({ headline: n.headling, summary: n.summary }));
-    const prompt = buildPrompt(symbol, quote, indicators, {
+    const news = newsData.map((n: any) => ({ headline: n.headling, summary: n.summary }));
+    const prompt = buildPrompt(symbol, quote, {
       peRatio: financials?.peRatio,
       eps: financials?.eps,
       revenueGrowth: financials?.revenueQuarterlyGrwth,
@@ -146,7 +118,7 @@ export async function GET(
         symbol,
         recommendation: aiResult.recommendation,
         confidence: aiResult.confidence,
-        technical: aiResult.technical_analysis,
+        technical: 'Not available on free tier',
         fundamental: aiResult.fundamental_analysis,
         sentiment: aiResult.sentiment_analysis,
         summary: aiResult.summary,
