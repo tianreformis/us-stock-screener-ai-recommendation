@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
       ? await fetchNews(ticker).catch(() => [])
       : await fetchNews().catch(() => []);
 
-    const response = news.slice(0, 20).map((n) => ({
+    const response = news.slice(0, 20).map((n: any) => ({
       id: n.id,
       headline: n.headling,
       summary: n.summary,

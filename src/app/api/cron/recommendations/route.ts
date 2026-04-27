@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchQuote, fetchBasicFinancials, fetchNews, fetchStockCandles } from '@/lib/finnhub';
+import { fetchQuote, fetchBasicFinancials, fetchNews } from '@/lib/finnhub';
 import { generateRecommendation } from '@/lib/mistral';
 import { prisma } from '@/lib/prisma';
-import { calculateTechnicalIndicators } from '@/lib/indicators';
 import { TOP_US_STOCKS } from '@/lib/constants';
-
-const CRON_SECRET = process.env.CRON_SECRET;
 
 async function generateRecommendationForStock(symbol: string): Promise<{
   success: boolean;
@@ -14,40 +11,20 @@ async function generateRecommendationForStock(symbol: string): Promise<{
   error?: string;
 }> {
   try {
-    const [quote, financials, newsData, candleData]: [any, any, any, any] = await Promise.all([
+    const [quote, financials, newsData]: [any, any, any] = await Promise.all([
       fetchQuote(symbol).catch(() => null),
       fetchBasicFinancials(symbol).catch(() => null),
       fetchNews(symbol).catch(() => []),
-      fetchStockCandles(symbol, 'D', Math.floor(Date.now() / 1000) - 365 * 24 * 60 * 60, Math.floor(Date.now() / 1000)).catch(() => null),
     ]);
 
     if (!quote) {
       return { success: false, symbol, error: 'Failed to fetch quote' };
     }
 
-    const prices: number[] = candleData?.c || [];
-    const chartData = prices.map((close: number, i: number) => ({
-      date: new Date((candleData?.t?.[i] || 0) * 1000),
-      close,
-    }));
-
-    const indicators = calculateTechnicalIndicators(
-      chartData.map((p) => ({
-        id: '',
-        symbol,
-        date: p.date,
-        open: quote.o,
-        high: quote.h,
-        low: quote.l,
-        close: p.close,
-        volume: 0,
-      }))
-    );
-
     const priceStr = `Current: $${quote.c} (${quote.d > 0 ? '+' : ''}${quote.d}, ${quote.dp}%)
 High: $${quote.h} | Low: ${quote.l} | Open: ${quote.o}`;
 
-    const news: any[] = newsData.slice(0, 5).map((n: any) => `- ${n.headling}`).join('\n');
+    const news = newsData.slice(0, 5).map((n: any) => `- ${n.headling}`).join('\n');
 
     const prompt = `You are a professional Wall Street quantitative analyst.
 
@@ -55,12 +32,6 @@ Analyze the following stock:
 
 Ticker: ${symbol}
 Price Data: ${priceStr}
-Technical Indicators:
-- RSI: ${indicators.rsi.toFixed(2)}
-- EMA20: ${indicators.ema20}
-- EMA50: ${indicators.ema50}
-- EMA200: ${indicators.ema200}
-- MACD: ${indicators.macd.MACD.toFixed(2)} (signal: ${indicators.macd.signal.toFixed(2)}, histogram: ${indicators.macd.histogram.toFixed(2)})
 
 Fundamental Data:
 - P/E Ratio: ${financials?.peRatio || 'N/A'}
@@ -75,7 +46,7 @@ Return JSON only with this format:
 {
   "recommendation": "BUY | SELL | HOLD",
   "confidence": number,
-  "technical_analysis": "...",
+  "technical_analysis": "Not available - no historical price data",
   "fundamental_analysis": "...",
   "sentiment_analysis": "...",
   "summary": "short explanation"
@@ -90,7 +61,7 @@ Be concise, data-driven, and avoid speculation.`;
         symbol,
         recommendation: aiResult.recommendation,
         confidence: aiResult.confidence,
-        technical: aiResult.technical_analysis,
+        technical: 'Not available on free tier',
         fundamental: aiResult.fundamental_analysis,
         sentiment: aiResult.sentiment_analysis,
         summary: aiResult.summary,
@@ -110,14 +81,15 @@ Be concise, data-driven, and avoid speculation.`;
 
 export async function POST(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
+  const CRON_SECRET = process.env.CRON_SECRET;
 
   if (CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
-    const body = await request.json();
-    const { symbols = TOP_US_STOCKS.slice(0, 100).map((s) => s.symbol) } = body;
+    const body = await request.json().catch(() => ({}));
+    const symbols = body.symbols || TOP_US_STOCKS.slice(0, 100).map((s) => s.symbol);
 
     const results: Array<{
       success: boolean;

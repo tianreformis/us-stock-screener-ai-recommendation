@@ -29,6 +29,7 @@ declare module 'yahoo-finance2' {
     priceToBook?: number;
     pegRatioFiveYearExpected?: number;
     sector?: string;
+    industry?: string;
   }
 
   interface HistoricalModule {
@@ -41,15 +42,9 @@ declare module 'yahoo-finance2' {
     volume: number;
   }
 
-  interface QuoteSummaryModule {
-    assetProfile?: Record<string, unknown>;
-    summaryProfile?: Record<string, unknown>;
-  }
-
   class YahooFinance {
     quote(symbol: string): Promise<QuoteModule>;
-    historical(symbol: string, options?: { period?: string }): Promise<HistoricalModule[]>;
-    quoteSummary(symbol: string, options?: { modules?: string }): Promise<QuoteSummaryModule>;
+    historical(symbol: string, options?: { period1?: Date; period2?: Date }): Promise<HistoricalModule[]>;
   }
 
   export default YahooFinance;

@@ -29,7 +29,12 @@ export async function fetchStockCandles(
   _to: number
 ) {
   try {
-    const history = await yf.historical(symbol, { period: '1y' });
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    
+    const history = await yf.historical(symbol, { 
+      period1: oneYearAgo,
+    });
     
     const timestamps = history.map(d => Math.floor(d.date.getTime() / 1000));
     const closes = history.map(d => d.close);
@@ -55,34 +60,17 @@ export async function fetchStockCandles(
 
 export async function fetchCompanyProfile(symbol: string) {
   try {
-    const summary = await yf.quoteSummary(symbol, {
-      modules: 'assetProfile,summaryProfile',
-    });
-
-    const profile = summary.assetProfile || {};
-    const summaryProfile = summary.summaryProfile || {};
-
+    const quote = await yf.quote(symbol);
     return {
-      name: profile.city ? `${summaryProfile.shortName || symbol}, ${profile.city}` : summaryProfile.shortName || symbol,
-      sector: profile.sector || null,
-      industry: profile.industry || null,
-      fullTimeEmployees: profile.fullTimeEmployees || null,
-      webUrl: profile.webUrl || null,
+      name: quote.shortName || quote.longName || symbol,
+      sector: quote.sector || null,
+      industry: quote.industry || null,
+      fullTimeEmployees: null,
+      webUrl: null,
     };
   } catch (e) {
     console.error('Profile error:', e);
-    try {
-      const quote = await yf.quote(symbol);
-      return {
-        name: quote.shortName || quote.longName || symbol,
-        sector: quote.sector || null,
-        industry: null,
-        fullTimeEmployees: null,
-        webUrl: null,
-      };
-    } catch {
-      return null;
-    }
+    return null;
   }
 }
 
