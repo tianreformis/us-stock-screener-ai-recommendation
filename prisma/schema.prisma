@@ -1,0 +1,89 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Stock {
+  symbol     String       @id
+  name      String
+  sector    String?
+  industry  String?
+  marketCap Float?
+  exchange  String?
+  price     Float?
+  pe        Float?
+  eps       Float?
+  volume    BigInt?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  prices         StockPrice[]
+  recommendations  Recommendation[]
+  newsArticles NewsArticle[]
+
+  @@index([sector])
+  @@index([marketCap])
+}
+
+model StockPrice {
+  id        String   @id @default(uuid())
+  symbol    String
+  date      DateTime
+  open      Float
+  high      Float
+  low       Float
+  close     Float
+  volume    BigInt
+  createdAt DateTime @default(now())
+
+  stock Stock @relation(fields: [symbol], references: [symbol])
+
+  @@unique([symbol, date])
+  @@index([symbol, date])
+  @@index([date])
+}
+
+model Recommendation {
+  id             String   @id @default(uuid())
+  symbol         String
+  recommendation  String
+  confidence     Int
+  technical      String
+  fundamental    String
+  sentiment      String
+  summary        String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  stock Stock @relation(fields: [symbol], references: [symbol])
+
+  @@index([symbol, createdAt])
+}
+
+model NewsArticle {
+  id        String   @id @default(uuid())
+  symbol    String
+  headline  String
+  summary   String?
+  source    String?
+  url       String?
+  datetime  DateTime
+  createdAt DateTime @default(now())
+
+  stock Stock @relation(fields: [symbol], references: [symbol])
+
+  @@index([symbol, datetime])
+}
+
+model CacheEntry {
+  key       String    @id
+  value     String    @db.Text
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+
+  @@index([expiresAt])
+}
