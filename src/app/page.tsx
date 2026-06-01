@@ -16,6 +16,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
+import { AppearanceProvider, useAppearance } from '@/components/screener/AppearanceContext';
 import {
   LayoutDashboard,
   Filter,
@@ -32,18 +33,22 @@ import {
   Percent,
   TrendingDown as BearIcon,
   AlertCircle,
+  Settings,
 } from 'lucide-react';
 
 export default function Home() {
   return (
     <ToastProvider>
-      <MainDashboard />
+      <AppearanceProvider>
+        <MainDashboard />
+      </AppearanceProvider>
     </ToastProvider>
   );
 }
 
 function MainDashboard() {
   const { toast } = useToast();
+  const { setIsSettingsOpen } = useAppearance();
   const [activeTab, setActiveTab] = React.useState<'screener' | 'dashboard' | 'watchlist' | 'overview'>('screener');
   const [selectedStock, setSelectedStock] = React.useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = React.useState(false);
@@ -303,19 +308,13 @@ function MainDashboard() {
               </div>
             </div>
 
-            {/* Simulated Theme Toggle */}
+            {/* Appearance Controls */}
             <button
-              onClick={() => {
-                toast({
-                  title: 'Financial Dark Theme Active',
-                  description: 'Sleek dark zinc terminal is configured as default for premium data readability.',
-                  variant: 'default',
-                });
-              }}
+              onClick={() => setIsSettingsOpen(true)}
               className="p-2 border border-zinc-900 hover:border-zinc-800 hover:bg-zinc-900/30 rounded-lg text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
-              title="Theme Toggle"
+              title="Appearance Settings"
             >
-              <Moon className="h-4 w-4" />
+              <Settings className="h-4 w-4" />
             </button>
           </div>
         </header>
