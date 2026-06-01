@@ -127,6 +127,7 @@ export function StockDetailModal({ ticker, isOpen, onClose, activeStrategy }: St
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-4xl bg-zinc-950 border-zinc-800 text-zinc-100 max-h-[90vh] overflow-hidden flex flex-col p-0">
+        <DialogTitle className="sr-only">Stock Technical & Fundamental Analysis - {ticker}</DialogTitle>
         
         {loading ? (
           <div className="flex flex-col items-center justify-center h-96 gap-3">
