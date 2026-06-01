@@ -1,117 +1,127 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchQuote, fetchCompanyProfile, fetchBasicFinancials, fetchStockCandles, fetchNews } from '@/lib/finnhub';
 import { prisma } from '@/lib/prisma';
-import { getCache, setCache } from '@/lib/cache';
-
-import type { Stock, StockQuote, StockFundamentals, StockPrice, ChartData } from '@/types';
-
-interface StockDetailResponse {
-  stock: any;
-  quote?: any;
-  profile?: any;
-  candles?: any[];
-  news?: any[];
-}
+import { fetchQuote, fetchStockCandles } from '@/lib/yahoo';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ ticker: string }> }
 ) {
-  const { ticker } = await params;
-  const symbol = ticker.toUpperCase();
-
-  const cacheKey = `stock:${symbol}`;
-  const cached = await getCache<StockDetailResponse>(cacheKey);
-  if (cached) {
-    return NextResponse.json(cached);
-  }
-
   try {
-    let [quote, profile, financials]: [any, any, any] = await Promise.all([
+    const { ticker } = await params;
+    const symbol = ticker.toUpperCase();
+
+    // Fetch the stock with relations from the local DB
+    const stock = await prisma.stock.findUnique({
+      where: { ticker: symbol },
+      include: {
+        recommendations: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+        newsArticles: {
+          orderBy: { datetime: 'desc' },
+          take: 5,
+        },
+      },
+    });
+
+    if (!stock) {
+      return NextResponse.json(
+        { error: `Stock ${symbol} not found` },
+        { status: 404 }
+      );
+    }
+
+    // Fetch live quote and historical daily candles in parallel from Yahoo Finance
+    const [liveQuote, liveCandles] = await Promise.all([
       fetchQuote(symbol).catch(() => null),
-      fetchCompanyProfile(symbol).catch(() => null),
-      fetchBasicFinancials(symbol).catch(() => null),
+      fetchStockCandles(symbol, 'D', 0, 0).catch(() => null),
     ]);
 
-    const now = Math.floor(Date.now() / 1000);
-    const oneMonthAgo = now - 30 * 24 * 60 * 60;
-    const oneYearAgo = now - 365 * 24 * 60 * 60;
-
-    let candles: ChartData[] = [];
-
-    try {
-      const candleData = await fetchStockCandles(symbol, 'D', oneYearAgo, now);
-      if (candleData.s === 'ok' && candleData.c && candleData.c.length > 0) {
-        candles = candleData.t.map((timestamp: any, index: any) => ({
-          time: new Date(timestamp * 1000).toISOString().split('T')[0],
-          open: candleData.o[index],
-          high: candleData.h[index],
-          low: candleData.l[index],
-          close: candleData.c[index],
-          volume: candleData.v[index],
-        }));
-      }
-    } catch (e) {
-      console.error('Failed to fetch candles for', symbol, e);
-    }
-
-    let news: any[] = [];
-    try {
-      const newsData = await fetchNews(symbol);
-      if (newsData && newsData.length > 0) {
-        news = newsData.slice(0, 10).map((n: any) => ({
-          id: n.id,
-          headline: n.title,
-          summary: n.summary,
-          source: n.source,
-          url: n.url,
-          datetime: n.published_at,
-        }));
-      }
-    } catch (e) {
-      console.error('Failed to fetch news for', symbol, e);
-    }
-
-    let dbStock: Stock | null = null;
-    try {
-      dbStock = await prisma.stock.findUnique({
+    // Format candles for Recharts. Try Yahoo Finance first, fallback to DB
+    let candles = [];
+    if (liveCandles && liveCandles.s === 'ok' && liveCandles.c && liveCandles.c.length > 0) {
+      candles = liveCandles.t.map((timestamp: number, index: number) => ({
+        time: new Date(timestamp * 1000).toISOString().split('T')[0],
+        open: liveCandles.o[index],
+        high: liveCandles.h[index],
+        low: liveCandles.l[index],
+        close: liveCandles.c[index],
+        volume: liveCandles.v[index],
+      })).slice(-30); // Grab the most recent 30 trading days
+    } else {
+      // Fallback to seeded database prices if Yahoo historical is offline
+      const dbPrices = await prisma.stockPrice.findMany({
         where: { symbol },
-      }) as any;
-    } catch {
-      console.error('Failed to fetch stock from DB');
+        orderBy: { date: 'asc' },
+      });
+      candles = dbPrices.map((p) => ({
+        time: p.date.toISOString().split('T')[0],
+        open: p.open,
+        high: p.high,
+        low: p.low,
+        close: p.close,
+        volume: p.volume,
+      }));
     }
 
-    const stock: Stock & { change?: number; changePercent?: number } = {
-      symbol: dbStock?.symbol || symbol,
-      name: profile?.name || dbStock?.name || symbol,
-      sector: profile?.sector || financials?.sector || dbStock?.sector || undefined,
-      industry: financials?.industry || dbStock?.industry || undefined,
-      marketCap: profile?.marketCapitalization || dbStock?.marketCap || undefined,
-      exchange: profile?.exchange || dbStock?.exchange || undefined,
-      price: quote?.c || dbStock?.price || null,
-      pe: financials?.peRatio || dbStock?.pe || undefined,
-      eps: financials?.eps || dbStock?.eps || undefined,
-      change: quote?.d || undefined,
-      changePercent: quote?.dp || undefined,
-    };
+    // Prepare real-time quotes, falling back to DB values if liveQuote is null
+    const price = liveQuote?.c || stock.price;
+    const change = liveQuote?.d || stock.change;
+    const changePercent = liveQuote?.dp || stock.changePercent;
 
-    const newsList = news;
+    // Optional: Sync the newly fetched real-time price back to the DB in background
+    if (liveQuote) {
+      prisma.stock.update({
+        where: { ticker: symbol },
+        data: { price, change, changePercent },
+      }).catch((e) => console.error(`Error background-syncing stock price for ${symbol}:`, e));
+    }
 
     const response = {
-      stock,
-      quote: quote || undefined,
-      profile: financials as any,
-      candles: candles.length > 0 ? candles : undefined,
-      news: newsList,
+      stock: {
+        ticker: stock.ticker,
+        symbol: stock.ticker, // Compatibility
+        name: stock.name,
+        sector: stock.sector,
+        industry: stock.industry,
+        price,
+        change,
+        changePercent,
+        volume: stock.volume,
+        avgVolume3M: stock.avgVolume3M,
+        marketCap: stock.marketCap,
+        pe: stock.pe,
+        forwardPe: stock.forwardPe,
+        eps: stock.eps,
+        rsi14: stock.rsi14,
+        sma20: stock.sma20,
+        sma50: stock.sma50,
+        sma200: stock.sma200,
+        macdLine: stock.macdLine,
+        macdSignal: stock.macdSignal,
+        atr: stock.atr,
+        beta: stock.beta,
+        high52Week: stock.high52Week,
+        low52Week: stock.low52Week,
+      },
+      candles,
+      recommendation: stock.recommendations[0] || null,
+      news: stock.newsArticles.map((n) => ({
+        id: n.id,
+        headline: n.headline,
+        summary: n.summary,
+        source: n.source,
+        url: n.url,
+        datetime: n.datetime.toISOString(),
+      })),
     };
-
-    await setCache(cacheKey, response, 15 * 60 * 1000);
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error('Stock detail API error:', error);
+    console.error('Individual stock fetch error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch stock detail' },
+      { error: 'Failed to fetch individual stock data' },
       { status: 500 }
     );
   }

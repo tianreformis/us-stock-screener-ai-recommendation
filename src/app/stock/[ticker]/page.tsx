@@ -61,7 +61,7 @@ async function getStockData(ticker: string) {
   let dbStock = null;
   try {
     dbStock = await prisma.stock.findUnique({
-      where: { symbol },
+      where: { ticker: symbol },
     }) as any;
   } catch (e) {
     console.error('Failed to fetch stock from DB', e);
@@ -69,7 +69,7 @@ async function getStockData(ticker: string) {
 
   return {
     stock: {
-      symbol: dbStock?.symbol || symbol,
+      symbol: dbStock?.ticker || symbol,
       name: dbStock?.name || symbol,
       sector: profile?.sector || financials?.sector || dbStock?.sector || undefined,
       industry: financials?.industry || dbStock?.industry || undefined,

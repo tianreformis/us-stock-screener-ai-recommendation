@@ -32,19 +32,23 @@ export async function fetchStockCandles(
     const oneYearAgo = new Date();
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
     
-    const history = await yf.historical(symbol, { 
-      period1: oneYearAgo,
+    // Call chart() directly as suggested by the Yahoo Finance 2 library, casting to any for TypeScript definitions compatibility
+    const result = await (yf as any).chart(symbol, { 
+      period1: oneYearAgo.toISOString().split('T')[0], // format as YYYY-MM-DD
+      period2: new Date().toISOString().split('T')[0],   // format as YYYY-MM-DD
+      interval: '1d',
     });
     
-    const timestamps = history.map(d => Math.floor(d.date.getTime() / 1000));
-    const closes = history.map(d => d.close);
-    const opens = history.map(d => d.open);
-    const highs = history.map(d => d.high);
-    const lows = history.map(d => d.low);
-    const volumes = history.map(d => d.volume);
+    const quotes = result.quotes || [];
+    const timestamps = quotes.map((d: any) => d.date ? Math.floor(new Date(d.date).getTime() / 1000) : 0);
+    const closes = quotes.map((d: any) => d.close ?? 0);
+    const opens = quotes.map((d: any) => d.open ?? 0);
+    const highs = quotes.map((d: any) => d.high ?? 0);
+    const lows = quotes.map((d: any) => d.low ?? 0);
+    const volumes = quotes.map((d: any) => d.volume ?? 0);
 
     return {
-      s: timestamps.length > 0 ? 'ok' : 'no_data',
+      s: quotes.length > 0 ? 'ok' : 'no_data',
       t: timestamps,
       o: opens,
       h: highs,
@@ -53,7 +57,7 @@ export async function fetchStockCandles(
       v: volumes,
     };
   } catch (e) {
-    console.error('Historical error:', e);
+    console.error('Historical chart error:', e);
     return { s: 'no_data', t: [], o: [], h: [], l: [], c: [], v: [] };
   }
 }

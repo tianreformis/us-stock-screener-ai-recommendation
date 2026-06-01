@@ -1,112 +1,150 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { fetchQuote, fetchBasicFinancials, fetchCompanyProfile } from '@/lib/finnhub';
-import { getCache, setCache } from '@/lib/cache';
-import { SECTORS } from '@/lib/constants';
-import type { ScreenerParams, PaginatedResponse, Stock } from '@/types';
+import { fetchQuote } from '@/lib/yahoo';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
 
-  const page = parseInt(searchParams.get('page') || '1');
-  const limit = parseInt(searchParams.get('limit') || '20');
-  const sector = searchParams.get('sector') || undefined;
+  const strategy = searchParams.get('strategy') || 'all';
+  const search = searchParams.get('search') || '';
   const sortBy = searchParams.get('sortBy') || 'marketCap';
   const sortOrder = (searchParams.get('sortOrder') || 'desc') as 'asc' | 'desc';
-  const minMarketCap = searchParams.get('minMarketCap')
-    ? parseFloat(searchParams.get('minMarketCap')!)
-    : undefined;
-  const maxMarketCap = searchParams.get('maxMarketCap')
-    ? parseFloat(searchParams.get('maxMarketCap')!)
-    : undefined;
-  const minPE = searchParams.get('minPE')
-    ? parseFloat(searchParams.get('minPE')!)
-    : undefined;
-  const maxPE = searchParams.get('maxPE')
-    ? parseFloat(searchParams.get('maxPE')!)
-    : undefined;
-  const search = searchParams.get('search') || undefined;
+  const sector = searchParams.get('sector') || 'all';
 
-  const cacheKey = `stocks:${JSON.stringify({ page, limit, sector, sortBy, sortOrder, minMarketCap, maxMarketCap, minPE, maxPE, search })}`;
-
-  const cached = await getCache<PaginatedResponse<Stock>>(cacheKey);
-  if (cached) {
-    return NextResponse.json(cached);
-  }
+  // Custom filters (parsed from query parameters)
+  const minPrice = searchParams.get('minPrice') ? parseFloat(searchParams.get('minPrice')!) : undefined;
+  const maxPrice = searchParams.get('maxPrice') ? parseFloat(searchParams.get('maxPrice')!) : undefined;
+  const minMarketCap = searchParams.get('minMarketCap') ? parseFloat(searchParams.get('minMarketCap')!) : undefined;
+  const maxMarketCap = searchParams.get('maxMarketCap') ? parseFloat(searchParams.get('maxMarketCap')!) : undefined;
+  const minPE = searchParams.get('minPE') ? parseFloat(searchParams.get('minPE')!) : undefined;
+  const maxPE = searchParams.get('maxPE') ? parseFloat(searchParams.get('maxPE')!) : undefined;
+  const minRsi = searchParams.get('minRsi') ? parseFloat(searchParams.get('minRsi')!) : undefined;
+  const maxRsi = searchParams.get('maxRsi') ? parseFloat(searchParams.get('maxRsi')!) : undefined;
+  const minVolume = searchParams.get('minVolume') ? parseFloat(searchParams.get('minVolume')!) : undefined;
+  const maxVolume = searchParams.get('maxVolume') ? parseFloat(searchParams.get('maxVolume')!) : undefined;
 
   try {
-    const where: Record<string, unknown> = {};
+    // 1. Fetch current stocks in DB
+    const dbStocks = await prisma.stock.findMany();
 
-    if (sector) {
-      where.sector = sector;
-    }
-
-    if (search) {
-      where.OR = [
-        { symbol: { contains: search.toUpperCase(), mode: 'insensitive' } },
-        { name: { contains: search, mode: 'insensitive' } },
-      ];
-    }
-
-    const stocks = await prisma.stock.findMany({
-      where,
-      orderBy: { [sortBy]: sortOrder },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
-
-    let filtered = [...stocks];
-
-    if (minMarketCap !== undefined) {
-      filtered = filtered.filter((s) => (s.marketCap || 0) >= minMarketCap);
-    }
-
-    if (maxMarketCap !== undefined) {
-      filtered = filtered.filter((s) => (s.marketCap || 0) <= maxMarketCap);
-    }
-
-    if (minPE !== undefined) {
-      filtered = filtered.filter((s) => (s.pe || 0) >= minPE);
-    }
-
-    if (maxPE !== undefined) {
-      filtered = filtered.filter((s) => (s.pe || 0) <= maxPE);
-    }
-
-    const quotePromises = filtered.map((stock) =>
-      fetchQuote(stock.symbol).catch(() => null)
+    // 2. Fetch real-time quotes in parallel from Yahoo Finance to update our SQLite database
+    const allStocks = await Promise.all(
+      dbStocks.map(async (stock) => {
+        try {
+          const liveQuote = await fetchQuote(stock.ticker);
+          if (liveQuote) {
+            // Update the record in SQLite so that strategies calculate on real-time prices
+            const updatedStock = await prisma.stock.update({
+              where: { ticker: stock.ticker },
+              data: {
+                price: liveQuote.c || stock.price,
+                change: liveQuote.d || stock.change,
+                changePercent: liveQuote.dp || stock.changePercent,
+              },
+            });
+            return updatedStock;
+          }
+        } catch (e) {
+          console.error(`Failed to synchronize real-time quote for ${stock.ticker}:`, e);
+        }
+        return stock; // fallback to DB record on network/API failure
+      })
     );
-    const quotes = await Promise.all(quotePromises);
 
-    const enrichedStocks: any[] = filtered.map((stock, index) => {
-      const quote = quotes[index];
-      return {
-        ...stock,
-        price: quote?.c || stock.price || null,
-        change: quote?.d || null,
-        changePercent: quote?.dp || null,
-        volume: stock.volume,
-      };
+    // 3. Filter by search (Ticker or Company Name)
+    let filtered = allStocks.filter((stock) => {
+      const matchSearch =
+        stock.ticker.toLowerCase().includes(search.toLowerCase()) ||
+        stock.name.toLowerCase().includes(search.toLowerCase());
+      
+      const matchSector = sector === 'all' || stock.sector === sector;
+
+      return matchSearch && matchSector;
     });
 
-    const total = enrichedStocks.length;
-    const totalPages = Math.ceil(total / limit);
+    // 4. Filter by Strategy using the freshly synced real-time data
+    if (strategy === 'scalping') {
+      // Scalping Strategy:
+      // Volume > 1,000,000 AND Beta > 1.3 AND Price >= $5 AND (Change Percent > 2% OR Change Percent < -2%)
+      filtered = filtered.filter((s) => {
+        const meetsVol = s.volume > 1000000;
+        const meetsBeta = s.beta > 1.3;
+        const meetsPrice = s.price >= 5;
+        const meetsChange = s.changePercent > 2 || s.changePercent < -2;
+        return meetsVol && meetsBeta && meetsPrice && meetsChange;
+      });
+    } else if (strategy === 'swing') {
+      // Swing Trading Strategy:
+      // Price > SMA_50 AND SMA_50 > SMA_200 AND RSI_14 BETWEEN 40 AND 60 AND Volume > 500,000
+      filtered = filtered.filter((s) => {
+        const meetsPriceSma = s.price > s.sma50;
+        const meetsSmaSma = s.sma50 > s.sma200;
+        const meetsRsi = s.rsi14 >= 40 && s.rsi14 <= 60;
+        const meetsVol = s.volume > 500000;
+        return meetsPriceSma && meetsSmaSma && meetsRsi && meetsVol;
+      });
+    } else if (strategy === 'momentum') {
+      // Momentum Play Strategy:
+      // Price > SMA_20 AND Price > SMA_50 AND Price > SMA_200 AND RSI_14 > 65 AND Price >= (0.95 * 52_Week_High)
+      filtered = filtered.filter((s) => {
+        const meetsSmas = s.price > s.sma20 && s.price > s.sma50 && s.price > s.sma200;
+        const meetsRsi = s.rsi14 > 65;
+        const meetsHigh52 = s.price >= 0.95 * s.high52Week;
+        return meetsSmas && meetsRsi && meetsHigh52;
+      });
+    } else if (strategy === 'fundamental') {
+      // Fundamental Play Strategy:
+      // P_E BETWEEN 0 AND 25 AND Market Cap > 10,000,000,000 AND EPS > 0 AND Price > SMA_200
+      filtered = filtered.filter((s) => {
+        const meetsPe = s.pe >= 0 && s.pe <= 25;
+        const meetsCap = s.marketCap > 10000000000;
+        const meetsEps = s.eps > 0;
+        const meetsPriceSma = s.price > s.sma200;
+        return meetsPe && meetsCap && meetsEps && meetsPriceSma;
+      });
+    } else if (strategy === 'custom') {
+      // Custom Advanced Screener
+      filtered = filtered.filter((s) => {
+        if (minPrice !== undefined && s.price < minPrice) return false;
+        if (maxPrice !== undefined && s.price > maxPrice) return false;
+        if (minMarketCap !== undefined && s.marketCap < minMarketCap) return false;
+        if (maxMarketCap !== undefined && s.marketCap > maxMarketCap) return false;
+        if (minPE !== undefined && s.pe < minPE) return false;
+        if (maxPE !== undefined && s.pe > maxPE) return false;
+        if (minRsi !== undefined && s.rsi14 < minRsi) return false;
+        if (maxRsi !== undefined && s.rsi14 > maxRsi) return false;
+        if (minVolume !== undefined && s.volume < minVolume) return false;
+        if (maxVolume !== undefined && s.volume > maxVolume) return false;
+        return true;
+      });
+    }
 
-    const response: PaginatedResponse<any> = {
-      data: enrichedStocks,
-      total,
-      page,
-      limit,
-      totalPages,
-    };
+    // 5. Sorting
+    filtered.sort((a: any, b: any) => {
+      let valA = a[sortBy];
+      let valB = b[sortBy];
 
-    await setCache(cacheKey, response, 5 * 60 * 1000);
+      // Special handling for Relative Volume in Scalping Strategy
+      if (sortBy === 'relativeVolume') {
+        valA = a.volume / (a.avgVolume3M || 1);
+        valB = b.volume / (b.avgVolume3M || 1);
+      }
 
-    return NextResponse.json(response);
+      if (valA === undefined || valA === null) return 1;
+      if (valB === undefined || valB === null) return -1;
+
+      if (typeof valA === 'string') {
+        return sortOrder === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      } else {
+        return sortOrder === 'asc' ? valA - valB : valB - valA;
+      }
+    });
+
+    return NextResponse.json(filtered);
   } catch (error) {
-    console.error('Stocks API error:', error);
+    console.error('Screener API error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch stocks' },
+      { error: 'Failed to fetch screener stocks' },
       { status: 500 }
     );
   }

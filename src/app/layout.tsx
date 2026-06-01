@@ -25,24 +25,10 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased dark`}
     >
-      <body className="min-h-full flex flex-col bg-background text-foreground">
-        <header className="border-b">
-          <div className="container mx-auto px-4 py-4">
-            <a href="/" className="text-xl font-bold hover:underline">
-              US Stock Screener
-            </a>
-          </div>
-        </header>
-        <main className="flex-1">
-          {children}
-        </main>
-        <footer className="border-t py-4">
-          <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-            Powered by Finnhub • AI Analysis by Mistral
-          </div>
-        </footer>
+      <body className="min-h-full flex flex-col bg-zinc-950 text-zinc-50 overflow-hidden">
+        {children}
       </body>
     </html>
   );

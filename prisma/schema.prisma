@@ -3,27 +3,40 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 model Stock {
-  symbol     String       @id
-  name      String
-  sector    String?
-  industry  String?
-  marketCap Float?
-  exchange  String?
-  price     Float?
-  pe        Float?
-  eps       Float?
-  volume    BigInt?
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  ticker          String   @id
+  name            String
+  sector          String
+  industry        String
+  price           Float
+  change          Float
+  changePercent   Float
+  volume          Float
+  avgVolume3M     Float
+  marketCap       Float
+  pe              Float // P/E
+  forwardPe       Float // Forward P/E
+  eps             Float // EPS
+  rsi14           Float // RSI (14)
+  sma20           Float // SMA (20)
+  sma50           Float // SMA (50)
+  sma200          Float // SMA (200)
+  macdLine        Float // MACD Line
+  macdSignal      Float // MACD Signal
+  atr             Float // ATR (Average True Range)
+  beta            Float // Beta
+  high52Week      Float // 52 Week High
+  low52Week       Float // 52 Week Low
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  prices         StockPrice[]
-  recommendations  Recommendation[]
-  newsArticles NewsArticle[]
+  prices          StockPrice[]
+  recommendations Recommendation[]
+  newsArticles    NewsArticle[]
 
   @@index([sector])
   @@index([marketCap])
@@ -37,10 +50,10 @@ model StockPrice {
   high      Float
   low       Float
   close     Float
-  volume    BigInt
+  volume    Float
   createdAt DateTime @default(now())
 
-  stock Stock @relation(fields: [symbol], references: [symbol])
+  stock Stock @relation(fields: [symbol], references: [ticker], onDelete: Cascade)
 
   @@unique([symbol, date])
   @@index([symbol, date])
@@ -50,7 +63,7 @@ model StockPrice {
 model Recommendation {
   id             String   @id @default(uuid())
   symbol         String
-  recommendation  String
+  recommendation String
   confidence     Int
   technical      String
   fundamental    String
@@ -59,7 +72,7 @@ model Recommendation {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  stock Stock @relation(fields: [symbol], references: [symbol])
+  stock Stock @relation(fields: [symbol], references: [ticker], onDelete: Cascade)
 
   @@index([symbol, createdAt])
 }
@@ -74,16 +87,16 @@ model NewsArticle {
   datetime  DateTime
   createdAt DateTime @default(now())
 
-  stock Stock @relation(fields: [symbol], references: [symbol])
+  stock Stock @relation(fields: [symbol], references: [ticker], onDelete: Cascade)
 
   @@index([symbol, datetime])
 }
 
 model CacheEntry {
-  key       String    @id
-  value     String    @db.Text
+  key       String   @id
+  value     String
   expiresAt DateTime
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
 
   @@index([expiresAt])
 }
