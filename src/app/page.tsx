@@ -1,53 +1,51 @@
 'use client';
 
 import * as React from 'react';
-import { ToastProvider, useToast } from '@/components/ui/toast';
+import { ToastProvider } from '@/components/ui/toast';
 import { useStocks, Strategy } from '@/hooks/useStocks';
 import { StrategyTabs } from '@/components/screener/StrategyTabs';
 import { CustomFilterForm } from '@/components/screener/CustomFilterForm';
 import { ScreenerTable } from '@/components/screener/ScreenerTable';
 import { StockDetailModal } from '@/components/screener/StockDetailModal';
-import { formatCurrency, formatMarketCap, formatPercent, formatNumber } from '@/lib/utils';
+import { formatMarketCap } from '@/lib/utils';
 import {
   LineChart,
   Line,
   XAxis,
   YAxis,
-  Tooltip,
   ResponsiveContainer,
 } from 'recharts';
 import { AppearanceProvider, useAppearance } from '@/components/screener/AppearanceContext';
+import { AuthProvider, useAuth, SignOutButton } from '@/components/screener/AuthContext';
 import {
   LayoutDashboard,
   Filter,
   Star,
   LineChart as ChartIcon,
   Search,
-  Bell,
-  Sun,
-  Moon,
   Clock,
-  ArrowUpRight,
   TrendingUp,
-  TrendingDown,
   Percent,
-  TrendingDown as BearIcon,
-  AlertCircle,
   Settings,
+  LogIn,
+  UserPlus,
 } from 'lucide-react';
 
 export default function Home() {
   return (
     <ToastProvider>
       <AppearanceProvider>
-        <MainDashboard />
+        <AuthProvider>
+          <MainDashboard />
+        </AuthProvider>
       </AppearanceProvider>
     </ToastProvider>
   );
 }
 
 function MainDashboard() {
-  const { toast } = useToast();
+  const { t } = useAppearance();
+  const { user, isLoadingUser, openAuth } = useAuth();
   const { setIsSettingsOpen } = useAppearance();
   const [activeTab, setActiveTab] = React.useState<'screener' | 'dashboard' | 'watchlist' | 'overview'>('screener');
   const [selectedStock, setSelectedStock] = React.useState<string | null>(null);
@@ -85,10 +83,7 @@ function MainDashboard() {
   };
 
   // Determine current market status (Eastern Time 9:30 AM - 4:00 PM, Mon-Fri)
-  const [marketStatus, setMarketStatus] = React.useState<{ status: string; isOpen: boolean }>({
-    status: 'MARKET CLOSED',
-    isOpen: false,
-  });
+  const [marketIsOpen, setMarketIsOpen] = React.useState(false);
 
   React.useEffect(() => {
     const checkMarketHours = () => {
@@ -103,11 +98,7 @@ function MainDashboard() {
       const isWeekday = day >= 1 && day <= 5;
       const isOpenTime = totalMinutes >= 9.5 * 60 && totalMinutes < 16 * 60; // 9:30 AM to 4:00 PM
 
-      if (isWeekday && isOpenTime) {
-        setMarketStatus({ status: 'MARKET OPEN', isOpen: true });
-      } else {
-        setMarketStatus({ status: 'MARKET CLOSED', isOpen: false });
-      }
+      setMarketIsOpen(isWeekday && isOpenTime);
     };
 
     checkMarketHours();
@@ -182,11 +173,11 @@ function MainDashboard() {
               Ω
             </div>
             <div>
-              <h2 className="font-black text-sm tracking-wide bg-gradient-to-right from-zinc-100 to-zinc-400 bg-clip-text text-transparent">
-                OPENCODE STOCK
+              <h2 className="font-black text-sm tracking-wide bg-gradient-to-r from-zinc-100 to-zinc-400 bg-clip-text text-transparent">
+                {t.brand.title}
               </h2>
               <p className="text-[10px] text-zinc-500 font-mono font-bold tracking-widest uppercase">
-                Screener Terminal
+                {t.brand.subtitle}
               </p>
             </div>
           </div>
@@ -202,7 +193,7 @@ function MainDashboard() {
               }`}
             >
               <LayoutDashboard className="h-4 w-4" />
-              <span>Executive Dashboard</span>
+              <span>{t.nav.dashboard}</span>
             </button>
 
             <button
@@ -214,7 +205,7 @@ function MainDashboard() {
               }`}
             >
               <Filter className="h-4 w-4" />
-              <span>Strategy Screener</span>
+              <span>{t.nav.screener}</span>
             </button>
 
             <button
@@ -226,7 +217,7 @@ function MainDashboard() {
               }`}
             >
               <Star className="h-4 w-4" />
-              <span>My Watchlist</span>
+              <span>{t.nav.watchlist}</span>
               {watchlist.length > 0 && (
                 <span className="ml-auto bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-mono px-1.5 py-0.5 rounded-full font-bold">
                   {watchlist.length}
@@ -243,21 +234,50 @@ function MainDashboard() {
               }`}
             >
               <ChartIcon className="h-4 w-4" />
-              <span>Market Overview</span>
+              <span>{t.nav.overview}</span>
             </button>
           </nav>
         </div>
 
-        {/* User / Settings Profile Footer */}
-        <div className="p-4 border-t border-zinc-900 text-xs text-zinc-500 font-mono space-y-1">
-          <div className="flex items-center gap-2 text-zinc-400 font-semibold mb-1">
-            <div className="h-5 w-5 rounded-full bg-zinc-800 flex items-center justify-center text-[10px] font-black">
-              FA
+        {/* User / Authentication Footer */}
+        <div className="p-4 border-t border-zinc-900 text-xs text-zinc-500 font-mono space-y-3">
+          {isLoadingUser ? (
+            <div className="h-9 rounded-lg bg-zinc-900/60 animate-pulse" />
+          ) : user ? (
+            <>
+              <div className="flex items-center gap-2 text-zinc-300 font-semibold">
+                <div className="h-7 w-7 rounded-full bg-emerald-500 flex items-center justify-center text-[11px] font-black text-zinc-950 uppercase">
+                  {user.name.charAt(0)}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] text-zinc-200 truncate">{user.name}</p>
+                  <p className="text-[10px] text-zinc-500 truncate">{t.auth.signedInAs} {user.email}</p>
+                </div>
+              </div>
+              <SignOutButton />
+            </>
+          ) : (
+            <div className="space-y-2">
+              <button
+                onClick={openAuth}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors cursor-pointer"
+              >
+                <LogIn className="h-3.5 w-3.5" />
+                <span>{t.auth.signIn}</span>
+              </button>
+              <button
+                onClick={openAuth}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-zinc-300 hover:text-white border border-zinc-800 hover:border-zinc-700 transition-colors cursor-pointer"
+              >
+                <UserPlus className="h-3.5 w-3.5" />
+                <span>{t.auth.signUp}</span>
+              </button>
             </div>
-            <span>Fin-Analyst Client</span>
+          )}
+          <div className="pt-1 space-y-0.5">
+            <p className="text-[10px]">{t.nav.dbEngine}</p>
+            <p className="text-[10px]">{t.nav.orm}</p>
           </div>
-          <p className="text-[10px]">DB Engine: SQLite 3.x</p>
-          <p className="text-[10px]">ORM: Prisma Client</p>
         </div>
       </aside>
 
@@ -273,7 +293,7 @@ function MainDashboard() {
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
               <input
                 type="text"
-                placeholder="Quick search symbol..."
+                placeholder={t.header.searchPlaceholder}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full bg-zinc-900/40 border border-zinc-900 rounded-lg pl-9 pr-3 py-2 text-xs font-mono text-zinc-300 focus:outline-none focus:ring-1 focus:ring-zinc-800 focus:border-zinc-800 placeholder-zinc-600"
@@ -296,14 +316,14 @@ function MainDashboard() {
               <div className="flex items-center gap-1.5">
                 <span className={`relative flex h-2 w-2`}>
                   <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                    marketStatus.isOpen ? 'bg-emerald-400' : 'bg-red-400'
+                    marketIsOpen ? 'bg-emerald-400' : 'bg-red-400'
                   }`}></span>
                   <span className={`relative inline-flex rounded-full h-2 w-2 ${
-                    marketStatus.isOpen ? 'bg-emerald-500' : 'bg-red-500'
+                    marketIsOpen ? 'bg-emerald-500' : 'bg-red-500'
                   }`}></span>
                 </span>
                 <span className="text-[10px] font-mono font-bold text-zinc-300 uppercase tracking-wider">
-                  {marketStatus.status}
+                  {marketIsOpen ? t.header.marketOpen : t.header.marketClosed}
                 </span>
               </div>
             </div>
@@ -312,7 +332,7 @@ function MainDashboard() {
             <button
               onClick={() => setIsSettingsOpen(true)}
               className="p-2 border border-zinc-900 hover:border-zinc-800 hover:bg-zinc-900/30 rounded-lg text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
-              title="Appearance Settings"
+              title={t.header.appearanceSettings}
             >
               <Settings className="h-4 w-4" />
             </button>
@@ -330,7 +350,7 @@ function MainDashboard() {
                 activeTab === 'dashboard' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400'
               }`}
             >
-              Dashboard
+              {t.nav.mobileDashboard}
             </button>
             <button
               onClick={() => setActiveTab('screener')}
@@ -338,7 +358,7 @@ function MainDashboard() {
                 activeTab === 'screener' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400'
               }`}
             >
-              Screener
+              {t.nav.mobileScreener}
             </button>
             <button
               onClick={() => setActiveTab('watchlist')}
@@ -346,7 +366,7 @@ function MainDashboard() {
                 activeTab === 'watchlist' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400'
               }`}
             >
-              Watch ({watchlist.length})
+              {t.nav.mobileWatchlist} ({watchlist.length})
             </button>
             <button
               onClick={() => setActiveTab('overview')}
@@ -354,7 +374,7 @@ function MainDashboard() {
                 activeTab === 'overview' ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400'
               }`}
             >
-              Indices
+              {t.nav.mobileOverview}
             </button>
           </div>
 
@@ -365,22 +385,22 @@ function MainDashboard() {
               {/* Introduction Card */}
               <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-8 text-zinc-800 opacity-20 pointer-events-none text-9xl font-black font-mono select-none">
-                  INDEX
+                  {t.dashboardView.indexWatermark}
                 </div>
                 <div className="max-w-2xl space-y-2">
-                  <h2 className="text-xl font-bold text-zinc-50">Market Intelligence Dashboard</h2>
+                  <h2 className="text-xl font-bold text-zinc-50">{t.dashboardView.title}</h2>
                   <p className="text-xs text-zinc-400 leading-relaxed">
-                    Welcome to your unified financial gateway. This dashboard filters quantitative data using advanced algorithms to identify actionable, mathematically validated trade setups.
+                    {t.dashboardView.welcome}
                   </p>
                   <div className="pt-2 flex flex-wrap gap-4 text-xs font-mono">
                     <div className="flex items-center gap-1.5 text-emerald-400">
                       <TrendingUp className="h-4 w-4" />
-                      <span>{getStrategyCounts.momentum} Breakout Matches</span>
+                      <span>{getStrategyCounts.momentum} {t.dashboardView.breakoutMatches}</span>
                     </div>
                     <span className="text-zinc-800">|</span>
                     <div className="flex items-center gap-1.5 text-blue-400">
                       <TrendingUp className="h-4 w-4" />
-                      <span>{getStrategyCounts.swing} Pullback Matches</span>
+                      <span>{getStrategyCounts.swing} {t.dashboardView.pullbackMatches}</span>
                     </div>
                   </div>
                 </div>
@@ -394,9 +414,9 @@ function MainDashboard() {
                   <div className="flex items-center justify-between border-b border-zinc-900 pb-3">
                     <div className="flex items-center gap-2">
                       <TrendingUp className="h-4 w-4 text-emerald-500" />
-                      <h3 className="font-bold text-xs uppercase tracking-wider text-zinc-300 font-mono">Top Intraday Gainers</h3>
+                      <h3 className="font-bold text-xs uppercase tracking-wider text-zinc-300 font-mono">{t.dashboardView.topGainers}</h3>
                     </div>
-                    <span className="text-[10px] text-zinc-500 font-mono">Top % Moves</span>
+                    <span className="text-[10px] text-zinc-500 font-mono">{t.dashboardView.topMoves}</span>
                   </div>
                   <div className="space-y-2">
                     {topGainers.map((s) => (
@@ -423,9 +443,9 @@ function MainDashboard() {
                   <div className="flex items-center justify-between border-b border-zinc-900 pb-3">
                     <div className="flex items-center gap-2">
                       <Percent className="h-4 w-4 text-emerald-500" />
-                      <h3 className="font-bold text-xs uppercase tracking-wider text-zinc-300 font-mono">Most Active (High Volume)</h3>
+                      <h3 className="font-bold text-xs uppercase tracking-wider text-zinc-300 font-mono">{t.dashboardView.mostActive}</h3>
                     </div>
-                    <span className="text-[10px] text-zinc-500 font-mono">Trading Activity</span>
+                    <span className="text-[10px] text-zinc-500 font-mono">{t.dashboardView.tradingActivity}</span>
                   </div>
                   <div className="space-y-2">
                     {topVolume.map((s) => (
@@ -439,7 +459,7 @@ function MainDashboard() {
                           <span className="text-[10px] text-zinc-400 max-w-[120px] truncate">{s.name}</span>
                         </div>
                         <div className="flex items-center gap-4 font-mono text-xs">
-                          <span className="font-semibold text-zinc-500">{formatMarketCap(s.volume)} shares</span>
+                          <span className="font-semibold text-zinc-500">{formatMarketCap(s.volume)} {t.dashboardView.sharesSuffix}</span>
                           <span className={`font-bold ${s.changePercent >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
                             {s.changePercent >= 0 ? '+' : ''}{s.changePercent.toFixed(2)}%
                           </span>
@@ -459,9 +479,9 @@ function MainDashboard() {
               
               {/* Quantitative strategy description header */}
               <div className="flex flex-col gap-2">
-                <h2 className="text-xl font-bold text-zinc-50">Market Intelligence Strategy Screener</h2>
+                <h2 className="text-xl font-bold text-zinc-50">{t.screenerPage.title}</h2>
                 <p className="text-xs text-zinc-400">
-                  Select a pre-configured algorithmic screening strategy to scan the database, or create custom parameters.
+                  {t.screenerPage.subtitle}
                 </p>
               </div>
 
@@ -506,9 +526,9 @@ function MainDashboard() {
           {activeTab === 'watchlist' && (
             <div className="space-y-6 animate-in fade-in-30">
               <div className="flex flex-col gap-2">
-                <h2 className="text-xl font-bold text-zinc-50">My Custom Watchlist</h2>
+                <h2 className="text-xl font-bold text-zinc-50">{t.watchlistView.title}</h2>
                 <p className="text-xs text-zinc-400">
-                  Monitor your hand-picked selection of high-priority stocks and technical setups.
+                  {t.watchlistView.subtitle}
                 </p>
               </div>
 
@@ -534,16 +554,16 @@ function MainDashboard() {
                 <div className="bg-zinc-950 border border-zinc-900 rounded-xl p-16 text-center space-y-4">
                   <Star className="h-12 w-12 text-zinc-700 mx-auto fill-transparent animate-pulse" />
                   <div className="space-y-1 max-w-sm mx-auto">
-                    <h3 className="text-sm font-bold text-zinc-300">Your watchlist is currently empty</h3>
+                    <h3 className="text-sm font-bold text-zinc-300">{t.watchlistView.emptyTitle}</h3>
                     <p className="text-xs text-zinc-500 leading-relaxed">
-                      Toggle the star star icons on any stock row inside the strategy screener to follow performance in real-time.
+                      {t.watchlistView.emptyText}
                     </p>
                   </div>
                   <button
                     onClick={() => setActiveTab('screener')}
                     className="px-4 py-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-lg text-xs font-semibold text-zinc-300 hover:text-zinc-100 transition-colors cursor-pointer"
                   >
-                    Open Strategy Screener
+                    {t.watchlistView.openScreener}
                   </button>
                 </div>
               )}
@@ -554,9 +574,9 @@ function MainDashboard() {
           {activeTab === 'overview' && (
             <div className="space-y-6 animate-in fade-in-30">
               <div className="flex flex-col gap-2">
-                <h2 className="text-xl font-bold text-zinc-50">US Broad Indices Overview</h2>
+                <h2 className="text-xl font-bold text-zinc-50">{t.overviewView.title}</h2>
                 <p className="text-xs text-zinc-400">
-                  Track major US equity index benchmarks and structural sector metrics.
+                  {t.overviewView.subtitle}
                 </p>
               </div>
 
@@ -566,7 +586,7 @@ function MainDashboard() {
                   { symbol: 'SPY', name: 'S&P 500 Index', price: 520.40, change: 4.12, percent: 0.80, trend: [512, 514, 516, 515, 518, 520.4] },
                   { symbol: 'QQQ', name: 'Nasdaq 100 Index', price: 442.80, change: 6.85, percent: 1.57, trend: [430, 432, 435, 438, 440, 442.8] },
                   { symbol: 'DIA', name: 'Dow Jones 30', price: 391.20, change: -1.15, percent: -0.29, trend: [394, 393, 395, 392, 393, 391.2] },
-                  { symbol: 'IWM', name: 'Russell 2000 (Small Caps)', price: 212.50, change: 2.15, percent: 1.02, trend: [208, 209, 210, 211, 210, 212.5] },
+                  { symbol: 'IWM', name: `Russell 2000 (${t.overviewView.smallCaps})`, price: 212.50, change: 2.15, percent: 1.02, trend: [208, 209, 210, 211, 210, 212.5] },
                 ].map((idx) => {
                   const positive = idx.percent >= 0;
                   // Map trend array into charting object format
@@ -617,8 +637,8 @@ function MainDashboard() {
               {/* Sector Performance Map */}
               <div className="bg-zinc-950 border border-zinc-900 rounded-xl p-5 space-y-4">
                 <div className="flex items-center justify-between border-b border-zinc-900 pb-3">
-                  <h3 className="font-bold text-xs uppercase tracking-wider text-zinc-300 font-mono">Macro Sector Rankings</h3>
-                  <span className="text-[10px] text-zinc-500 font-mono">Relative Heat Index</span>
+                  <h3 className="font-bold text-xs uppercase tracking-wider text-zinc-300 font-mono">{t.overviewView.sectorRankings}</h3>
+                  <span className="text-[10px] text-zinc-500 font-mono">{t.overviewView.heatIndex}</span>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
                   {[

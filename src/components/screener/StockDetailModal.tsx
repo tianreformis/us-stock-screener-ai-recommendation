@@ -4,14 +4,14 @@ import * as React from 'react';
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useAppearance } from '@/components/screener/AppearanceContext';
 import { formatCurrency, formatMarketCap, formatPercent, formatNumber } from '@/lib/utils';
+import { tf } from '@/lib/translations';
 import {
   AreaChart,
   Area,
@@ -27,7 +27,6 @@ import {
   Activity,
   BarChart3,
   Calendar,
-  Layers,
   Sparkles,
   Newspaper,
   Volume2,
@@ -41,6 +40,7 @@ interface StockDetailModalProps {
 }
 
 export function StockDetailModal({ ticker, isOpen, onClose, activeStrategy }: StockDetailModalProps) {
+  const { t } = useAppearance();
   const [data, setData] = React.useState<any | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -92,15 +92,38 @@ export function StockDetailModal({ ticker, isOpen, onClose, activeStrategy }: St
 
     switch (activeStrategy) {
       case 'scalping':
-        return `This stock matches the Scalping Strategy due to high volatility (Beta: ${stock.beta}) and elevated trading volume (${formatMarketCap(stock.volume)} shares traded). Price has broken through key levels with a significant intraday move of ${formatPercent(stock.changePercent)}.`;
+        return tf(t.detail.explanations.scalping, {
+          beta: stock.beta,
+          volume: formatMarketCap(stock.volume),
+          change: formatPercent(stock.changePercent),
+        });
       case 'swing':
-        return `This stock matches the Swing Pullback Strategy. It exhibits a strong structural uptrend with SMA(50) $${stock.sma50} trading above SMA(200) $${stock.sma200}. The RSI(14) of ${stock.rsi14} indicates it is currently in a healthy pullback / accumulation zone (between 40 and 60), presenting a high-probability swing trade entry.`;
+        return tf(t.detail.explanations.swing, {
+          sma50: stock.sma50.toFixed(2),
+          sma200: stock.sma200.toFixed(2),
+          rsi: stock.rsi14,
+        });
       case 'momentum':
-        return `This stock matches the Momentum Breakout Strategy. It is exhibiting massive relative strength, trading comfortably above its 20, 50, and 200-day simple moving averages with a highly bullish RSI(14) of ${stock.rsi14}. Crucially, its current price of $${stock.price} is within 5% of its 52-week high ($${stock.high52Week}), signaling a potential explosive breakout.`;
+        return tf(t.detail.explanations.momentum, {
+          rsi: stock.rsi14,
+          price: stock.price,
+          high52: stock.high52Week,
+        });
       case 'fundamental':
-        return `This stock matches the Fundamental Value/Growth Strategy. It represents a highly profitable, financially stable large-cap company (Market Cap: $${(stock.marketCap / 1e9).toFixed(1)}B) trading at a highly reasonable valuation (P/E: ${stock.pe}x) with positive earnings per share (EPS: $${stock.eps}). The fact that price is above SMA(200) confirms structural long-term bullish support.`;
+        return tf(t.detail.explanations.fundamental, {
+          cap: `${(stock.marketCap / 1e9).toFixed(1)}B`,
+          pe: stock.pe,
+          eps: stock.eps,
+        });
       default:
-        return recommendation?.summary || `This stock shows clean indicators. Price is at $${stock.price} with an RSI(14) of ${stock.rsi14} and annual volatility ATR of $${stock.atr}. It represents a solid candidate for further monitoring.`;
+        return (
+          recommendation?.summary ||
+          tf(t.detail.explanations.default, {
+            price: stock.price,
+            rsi: stock.rsi14,
+            atr: stock.atr,
+          })
+        );
     }
   };
 
@@ -111,11 +134,11 @@ export function StockDetailModal({ ticker, isOpen, onClose, activeStrategy }: St
         <div className="bg-zinc-950 border border-zinc-800 p-3 rounded-lg shadow-xl font-mono text-xs text-zinc-100">
           <p className="text-zinc-500 mb-1">{payload[0].payload.time}</p>
           <p className="flex justify-between gap-6">
-            <span>Price:</span>
+            <span>{t.detail.priceLabel}</span>
             <span className="font-semibold text-emerald-400">${payload[0].value.toFixed(2)}</span>
           </p>
           <p className="flex justify-between gap-6 text-[10px] text-zinc-400">
-            <span>Volume:</span>
+            <span>{t.detail.volumeLabel}</span>
             <span>{formatNumber(payload[0].payload.volume)}</span>
           </p>
         </div>
@@ -127,18 +150,18 @@ export function StockDetailModal({ ticker, isOpen, onClose, activeStrategy }: St
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-4xl bg-zinc-950 border-zinc-800 text-zinc-100 max-h-[90vh] overflow-hidden flex flex-col p-0">
-        <DialogTitle className="sr-only">Stock Technical & Fundamental Analysis - {ticker}</DialogTitle>
+        <DialogTitle className="sr-only">{t.detail.srTitle} - {ticker}</DialogTitle>
         
         {loading ? (
           <div className="flex flex-col items-center justify-center h-96 gap-3">
             <div className="animate-spin h-8 w-8 border-4 border-emerald-500 border-t-transparent rounded-full" />
-            <p className="text-sm text-zinc-400 font-mono">Retrieving quantitative metrics...</p>
+            <p className="text-sm text-zinc-400 font-mono">{t.detail.loading}</p>
           </div>
         ) : error ? (
           <div className="flex flex-col items-center justify-center h-96 gap-4 p-6 text-center">
             <p className="text-red-400 font-semibold">{error}</p>
             <button onClick={onClose} className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-xs">
-              Close Window
+              {t.detail.closeWindow}
             </button>
           </div>
         ) : !stock ? (
@@ -163,9 +186,9 @@ export function StockDetailModal({ ticker, isOpen, onClose, activeStrategy }: St
                   </Badge>
                 </div>
                 <div className="text-xs text-zinc-500 mt-1 flex items-center gap-3">
-                  <span>ATR: ${stock.atr}</span>
+                  <span>{t.detail.atrLabel} ${stock.atr}</span>
                   <span>•</span>
-                  <span>Beta: {stock.beta}</span>
+                  <span>{t.detail.betaShort} {stock.beta}</span>
                 </div>
               </div>
 
@@ -197,11 +220,11 @@ export function StockDetailModal({ ticker, isOpen, onClose, activeStrategy }: St
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-bold uppercase tracking-widest text-emerald-400 font-mono">
-                        Strategy Verification Analysis
+                        {t.detail.strategyAnalysis}
                       </span>
                       {recommendation && (
                         <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-mono text-[10px] h-fit">
-                          {recommendation.recommendation} ({recommendation.confidence}% Conf.)
+                          {recommendation.recommendation} ({recommendation.confidence}% {t.detail.confidence})
                         </Badge>
                       )}
                     </div>
@@ -217,10 +240,10 @@ export function StockDetailModal({ ticker, isOpen, onClose, activeStrategy }: St
                     <div className="flex items-center gap-2">
                       <Activity className="h-4 w-4 text-emerald-500" />
                       <span className="text-xs font-semibold uppercase tracking-widest text-zinc-400 font-mono">
-                        30-Day Historical Price Trend
+                        {t.detail.chartTitle}
                       </span>
                     </div>
-                    <span className="text-[10px] text-zinc-500 font-mono">Daily Candles Charting</span>
+                    <span className="text-[10px] text-zinc-500 font-mono">{t.detail.chartNote}</span>
                   </div>
                   <div className="h-64 w-full">
                     {mounted && candles.length > 0 ? (
@@ -262,7 +285,7 @@ export function StockDetailModal({ ticker, isOpen, onClose, activeStrategy }: St
                       </ResponsiveContainer>
                     ) : (
                       <div className="h-full flex items-center justify-center text-zinc-500 text-xs font-mono">
-                        Chart data unavailable
+                        {t.detail.chartUnavailable}
                       </div>
                     )}
                   </div>
@@ -270,66 +293,66 @@ export function StockDetailModal({ ticker, isOpen, onClose, activeStrategy }: St
 
                 {/* Technical vs Fundamental split tabs */}
                 <Tabs defaultValue="technicals" className="w-full">
-                  <TabsList className="bg-zinc-900 border border-zinc-800 w-full justify-start p-1 rounded-lg">
+                  <TabsList className="bg-zinc-900 border border-zinc-800 w-full justify-start p-1 rounded-lg overflow-x-auto">
                     <TabsTrigger value="technicals" className="text-xs font-mono text-zinc-400 data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-50">
                       <Activity className="h-3.5 w-3.5 mr-1.5 text-zinc-400" />
-                      Technical Indicators
+                      {t.detail.technicalsTab}
                     </TabsTrigger>
                     <TabsTrigger value="fundamentals" className="text-xs font-mono text-zinc-400 data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-50">
                       <BarChart3 className="h-3.5 w-3.5 mr-1.5 text-zinc-400" />
-                      Fundamental Profile
+                      {t.detail.fundamentalsTab}
                     </TabsTrigger>
                     <TabsTrigger value="news" className="text-xs font-mono text-zinc-400 data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-50">
                       <Newspaper className="h-3.5 w-3.5 mr-1.5 text-zinc-400" />
-                      Company News ({news.length})
+                      {t.detail.newsTab} ({news.length})
                     </TabsTrigger>
                   </TabsList>
 
                   {/* Technicals Panel */}
                   <TabsContent value="technicals" className="pt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="bg-zinc-900/40 border border-zinc-900 rounded-xl p-4 space-y-3.5">
-                      <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono">Moving Averages</span>
+                      <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono">{t.detail.movingAverages}</span>
                       
                       <div className="space-y-2 text-xs font-mono">
                         <div className="flex justify-between items-center">
-                          <span className="text-zinc-400">SMA (20)</span>
+                          <span className="text-zinc-400">{t.detail.sma20}</span>
                           <span className={stock.price > stock.sma20 ? 'text-emerald-500' : 'text-red-500'}>
-                            ${stock.sma20.toFixed(2)} ({stock.price > stock.sma20 ? 'Bullish' : 'Bearish'})
+                            ${stock.sma20.toFixed(2)} ({stock.price > stock.sma20 ? t.detail.bullish : t.detail.bearish})
                           </span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-zinc-400">SMA (50)</span>
+                          <span className="text-zinc-400">{t.detail.sma50}</span>
                           <span className={stock.price > stock.sma50 ? 'text-emerald-500' : 'text-red-500'}>
-                            ${stock.sma50.toFixed(2)} ({stock.price > stock.sma50 ? 'Bullish' : 'Bearish'})
+                            ${stock.sma50.toFixed(2)} ({stock.price > stock.sma50 ? t.detail.bullish : t.detail.bearish})
                           </span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-zinc-400">SMA (200)</span>
+                          <span className="text-zinc-400">{t.detail.sma200}</span>
                           <span className={stock.price > stock.sma200 ? 'text-emerald-500' : 'text-red-500'}>
-                            ${stock.sma200.toFixed(2)} ({stock.price > stock.sma200 ? 'Bullish' : 'Bearish'})
+                            ${stock.sma200.toFixed(2)} ({stock.price > stock.sma200 ? t.detail.bullish : t.detail.bearish})
                           </span>
                         </div>
                       </div>
                     </div>
 
                     <div className="bg-zinc-900/40 border border-zinc-900 rounded-xl p-4 space-y-3.5">
-                      <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono">Momentum & Volatility</span>
+                      <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono">{t.detail.momentumVolatility}</span>
                       
                       <div className="space-y-2 text-xs font-mono">
                         <div className="flex justify-between items-center">
-                          <span className="text-zinc-400">RSI (14)</span>
+                          <span className="text-zinc-400">{t.detail.rsi14}</span>
                           <span className={stock.rsi14 > 70 ? 'text-amber-500 font-bold' : stock.rsi14 < 30 ? 'text-purple-500 font-bold' : 'text-zinc-300'}>
-                            {stock.rsi14.toFixed(1)} ({stock.rsi14 > 70 ? 'Overbought' : stock.rsi14 < 30 ? 'Oversold' : 'Neutral'})
+                            {stock.rsi14.toFixed(1)} ({stock.rsi14 > 70 ? t.detail.overbought : stock.rsi14 < 30 ? t.detail.oversold : t.detail.neutral})
                           </span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-zinc-400">MACD Line</span>
+                          <span className="text-zinc-400">{t.detail.macdLine}</span>
                           <span className={stock.macdLine > stock.macdSignal ? 'text-emerald-500' : 'text-red-500'}>
                             {stock.macdLine.toFixed(2)}
                           </span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-zinc-400">MACD Signal</span>
+                          <span className="text-zinc-400">{t.detail.macdSignal}</span>
                           <span className="text-zinc-300">{stock.macdSignal.toFixed(2)}</span>
                         </div>
                       </div>
@@ -338,15 +361,15 @@ export function StockDetailModal({ ticker, isOpen, onClose, activeStrategy }: St
                     <div className="col-span-1 md:col-span-2 bg-zinc-900/40 border border-zinc-900 rounded-xl p-4 flex flex-col md:flex-row justify-between gap-4 font-mono text-xs text-zinc-400">
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-zinc-500" />
-                        <span>52-Week Range:</span>
+                        <span>{t.detail.week52Range}</span>
                         <span className="font-semibold text-zinc-200">${stock.low52Week.toFixed(2)}</span>
-                        <span className="text-zinc-600">to</span>
+                        <span className="text-zinc-600">{t.detail.to}</span>
                         <span className="font-semibold text-zinc-200">${stock.high52Week.toFixed(2)}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Volume2 className="h-4 w-4 text-zinc-500" />
-                        <span>Avg Vol (3M):</span>
-                        <span className="font-semibold text-zinc-200">{formatMarketCap(stock.avgVolume3M)} shares</span>
+                        <span>{t.detail.avgVol3m}</span>
+                        <span className="font-semibold text-zinc-200">{formatMarketCap(stock.avgVolume3M)} {t.detail.shares}</span>
                       </div>
                     </div>
                   </TabsContent>
@@ -354,23 +377,23 @@ export function StockDetailModal({ ticker, isOpen, onClose, activeStrategy }: St
                   {/* Fundamentals Panel */}
                   <TabsContent value="fundamentals" className="pt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="bg-zinc-900/40 border border-zinc-900 rounded-xl p-4 space-y-3.5">
-                      <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono">Valuation Ratios</span>
+                      <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono">{t.detail.valuationRatios}</span>
                       
                       <div className="space-y-2 text-xs font-mono">
                         <div className="flex justify-between items-center">
-                          <span className="text-zinc-400">Trailing P/E</span>
+                          <span className="text-zinc-400">{t.detail.trailingPe}</span>
                           <span className="font-semibold text-zinc-200">
                             {stock.pe > 0 ? `${stock.pe.toFixed(1)}x` : 'N/A'}
                           </span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-zinc-400">Forward P/E</span>
+                          <span className="text-zinc-400">{t.detail.forwardPe}</span>
                           <span className="font-semibold text-zinc-200">
                             {stock.forwardPe > 0 ? `${stock.forwardPe.toFixed(1)}x` : 'N/A'}
                           </span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-zinc-400">Earnings Per Share (EPS)</span>
+                          <span className="text-zinc-400">{t.detail.eps}</span>
                           <span className={stock.eps > 0 ? 'text-emerald-400' : 'text-red-400'}>
                             ${stock.eps.toFixed(2)}
                           </span>
@@ -379,21 +402,21 @@ export function StockDetailModal({ ticker, isOpen, onClose, activeStrategy }: St
                     </div>
 
                     <div className="bg-zinc-900/40 border border-zinc-900 rounded-xl p-4 space-y-3.5">
-                      <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono">Shareholder Metrics</span>
+                      <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono">{t.detail.shareholderMetrics}</span>
                       
                       <div className="space-y-2 text-xs font-mono">
                         <div className="flex justify-between items-center">
-                          <span className="text-zinc-400">Market Capitalization</span>
+                          <span className="text-zinc-400">{t.detail.marketCapitalization}</span>
                           <span className="font-semibold text-zinc-200">
                             {formatMarketCap(stock.marketCap)}
                           </span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-zinc-400">Beta (Volatility)</span>
+                          <span className="text-zinc-400">{t.detail.beta}</span>
                           <span className="font-semibold text-zinc-200">{stock.beta.toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-zinc-400">Average Volume 3M</span>
+                          <span className="text-zinc-400">{t.detail.averageVolume3m}</span>
                           <span className="font-semibold text-zinc-200">
                             {formatNumber(stock.avgVolume3M)}
                           </span>
@@ -423,7 +446,7 @@ export function StockDetailModal({ ticker, isOpen, onClose, activeStrategy }: St
                       ))
                     ) : (
                       <div className="text-center py-8 text-zinc-500 text-xs font-mono bg-zinc-900/20 border border-zinc-900 rounded-xl">
-                        No news articles found for {stock.ticker}
+                        {t.detail.noNews} {stock.ticker}
                       </div>
                     )}
                   </TabsContent>

@@ -3,8 +3,9 @@
 import * as React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { Rocket, TrendingUp, Zap, Gem, Sliders, Globe, BarChart2 } from 'lucide-react';
+import { Rocket, TrendingUp, Zap, Gem, Sliders, Globe } from 'lucide-react';
 import { Strategy } from '@/hooks/useStocks';
+import { useAppearance } from '@/components/screener/AppearanceContext';
 
 interface StrategyTabsProps {
   activeStrategy: Strategy;
@@ -13,51 +14,53 @@ interface StrategyTabsProps {
 }
 
 export function StrategyTabs({ activeStrategy, onStrategyChange, stocksCount }: StrategyTabsProps) {
+  const { t } = useAppearance();
+
   const strategies = [
     {
       id: 'all' as Strategy,
-      name: 'All Stocks',
-      description: 'Comprehensive view of all tracked equities in the database.',
+      name: t.strategies.all.name,
+      description: t.strategies.all.description,
       icon: Globe,
       badgeColor: 'default',
       accentColor: 'border-zinc-700 bg-zinc-900 text-zinc-100',
     },
     {
       id: 'scalping' as Strategy,
-      name: 'Scalping Setup',
-      description: 'High volatility and high relative volume breakout opportunities.',
+      name: t.strategies.scalping.name,
+      description: t.strategies.scalping.description,
       icon: Rocket,
       badgeColor: 'warning' as const,
       accentColor: 'border-amber-500/30 bg-amber-500/10 text-amber-400',
     },
     {
       id: 'swing' as Strategy,
-      name: 'Swing Pullback',
-      description: 'Trend following pullback entries inside strong structural uptrends.',
+      name: t.strategies.swing.name,
+      description: t.strategies.swing.description,
       icon: TrendingUp,
       badgeColor: 'info' as const,
       accentColor: 'border-blue-500/30 bg-blue-500/10 text-blue-400',
     },
     {
       id: 'momentum' as Strategy,
-      name: 'Momentum Breakout',
-      description: 'Super-momentum stocks breaking out near new 52-week highs.',
+      name: t.strategies.momentum.name,
+      description: t.strategies.momentum.description,
       icon: Zap,
       badgeColor: 'success' as const,
       accentColor: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400',
     },
     {
       id: 'fundamental' as Strategy,
-      name: 'Fundamental Play',
-      description: 'Undervalued large caps with profitable growth and solid metrics.',
+      name: t.strategies.fundamental.name,
+      description: t.strategies.fundamental.description,
       icon: Gem,
       badgeColor: 'purple' as const,
       accentColor: 'border-purple-500/30 bg-purple-500/10 text-purple-400',
     },
     {
       id: 'custom' as Strategy,
-      name: 'Custom Screener',
-      description: 'Advanced custom filtering of indicators, valuations, and metrics.',
+      name: t.strategies.custom.name,
+      description: t.strategies.custom.description,
       icon: Sliders,
       badgeColor: 'outline' as const,
       accentColor: 'border-zinc-700 bg-zinc-900 text-zinc-300',
@@ -90,7 +93,7 @@ export function StrategyTabs({ activeStrategy, onStrategyChange, stocksCount }: 
                   isActive ? strat.accentColor : 'border-zinc-800 bg-zinc-900/50 text-zinc-400 group-hover:text-zinc-200'
                 )}
               >
-                <Icon className="h-4.5 w-4.5" />
+                <Icon className="h-4 w-4" />
               </div>
               <Badge
                 variant={(strat.badgeColor === 'outline' ? 'outline' : strat.badgeColor) as any}
@@ -99,7 +102,7 @@ export function StrategyTabs({ activeStrategy, onStrategyChange, stocksCount }: 
                   strat.badgeColor === 'outline' && 'text-zinc-400 border-zinc-800 bg-zinc-900/20'
                 )}
               >
-                {count} {count === 1 ? 'stock' : 'stocks'}
+                {count} {count === 1 ? t.strategies.stockCount : t.strategies.stocksCount}
               </Badge>
             </div>
 
@@ -120,7 +123,7 @@ export function StrategyTabs({ activeStrategy, onStrategyChange, stocksCount }: 
 
             {/* Underline accent on active tab */}
             {isActive && (
-              <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-right from-emerald-500 via-teal-500 to-blue-500" />
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-blue-500" />
             )}
           </button>
         );

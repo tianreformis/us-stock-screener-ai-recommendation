@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { useAppearance } from '@/components/screener/AppearanceContext';
 import { RotateCcw, Filter, SlidersHorizontal } from 'lucide-react';
 import { SECTORS } from '@/lib/constants';
 import { CustomFilters } from '@/hooks/useStocks';
@@ -17,6 +18,8 @@ interface CustomFilterFormProps {
 }
 
 export function CustomFilterForm({ filters, onChange, onReset }: CustomFilterFormProps) {
+  const { t } = useAppearance();
+
   const updateFilter = (key: keyof CustomFilters, value: any) => {
     onChange({
       ...filters,
@@ -29,7 +32,7 @@ export function CustomFilterForm({ filters, onChange, onReset }: CustomFilterFor
       <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
         <div className="flex items-center gap-2">
           <SlidersHorizontal className="h-4 w-4 text-emerald-500" />
-          <h3 className="font-semibold text-zinc-100 text-sm">Advanced Filter Controls</h3>
+          <h3 className="font-semibold text-zinc-100 text-sm">{t.filters.advancedControls}</h3>
         </div>
         <Button
           variant="ghost"
@@ -38,7 +41,7 @@ export function CustomFilterForm({ filters, onChange, onReset }: CustomFilterFor
           className="h-8 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
         >
           <RotateCcw className="h-3.5 w-3.5 mr-1" />
-          Reset
+          {t.filters.reset}
         </Button>
       </div>
 
@@ -46,7 +49,7 @@ export function CustomFilterForm({ filters, onChange, onReset }: CustomFilterFor
         {/* Price Slider & Input */}
         <div className="space-y-2">
           <div className="flex justify-between items-center text-xs">
-            <Label className="text-zinc-400 font-medium">Max Price ($)</Label>
+            <Label className="text-zinc-400 font-medium">{t.filters.maxPrice}</Label>
             <span className="font-mono text-emerald-500 font-semibold">${filters.maxPrice}</span>
           </div>
           <Slider
@@ -58,7 +61,7 @@ export function CustomFilterForm({ filters, onChange, onReset }: CustomFilterFor
           />
           <div className="flex gap-2">
             <div className="w-1/2">
-              <Label className="text-[10px] text-zinc-500">Min Price</Label>
+              <Label className="text-[10px] text-zinc-500">{t.filters.minPrice}</Label>
               <Input
                 type="number"
                 value={filters.minPrice}
@@ -67,7 +70,7 @@ export function CustomFilterForm({ filters, onChange, onReset }: CustomFilterFor
               />
             </div>
             <div className="w-1/2">
-              <Label className="text-[10px] text-zinc-500">Max Price</Label>
+              <Label className="text-[10px] text-zinc-500">{t.filters.maxPriceInput}</Label>
               <Input
                 type="number"
                 value={filters.maxPrice}
@@ -81,7 +84,7 @@ export function CustomFilterForm({ filters, onChange, onReset }: CustomFilterFor
         {/* Market Cap Slider & Input */}
         <div className="space-y-2">
           <div className="flex justify-between items-center text-xs">
-            <Label className="text-zinc-400 font-medium">Max Market Cap ($B)</Label>
+            <Label className="text-zinc-400 font-medium">{t.filters.maxCapSlider}</Label>
             <span className="font-mono text-emerald-500 font-semibold">${filters.maxMarketCap}B</span>
           </div>
           <Slider
@@ -93,7 +96,7 @@ export function CustomFilterForm({ filters, onChange, onReset }: CustomFilterFor
           />
           <div className="flex gap-2">
             <div className="w-1/2">
-              <Label className="text-[10px] text-zinc-500">Min Cap ($B)</Label>
+              <Label className="text-[10px] text-zinc-500">{t.filters.minCap}</Label>
               <Input
                 type="number"
                 value={filters.minMarketCap}
@@ -102,7 +105,7 @@ export function CustomFilterForm({ filters, onChange, onReset }: CustomFilterFor
               />
             </div>
             <div className="w-1/2">
-              <Label className="text-[10px] text-zinc-500">Max Cap ($B)</Label>
+              <Label className="text-[10px] text-zinc-500">{t.filters.maxCap}</Label>
               <Input
                 type="number"
                 value={filters.maxMarketCap}
@@ -116,7 +119,7 @@ export function CustomFilterForm({ filters, onChange, onReset }: CustomFilterFor
         {/* RSI Slider */}
         <div className="space-y-2">
           <div className="flex justify-between items-center text-xs">
-            <Label className="text-zinc-400 font-medium">RSI Range (14)</Label>
+            <Label className="text-zinc-400 font-medium">{t.filters.rsiRange}</Label>
             <span className="font-mono text-emerald-500 font-semibold">
               {filters.minRsi} - {filters.maxRsi}
             </span>
@@ -130,7 +133,7 @@ export function CustomFilterForm({ filters, onChange, onReset }: CustomFilterFor
           />
           <div className="flex gap-2">
             <div className="w-1/2">
-              <Label className="text-[10px] text-zinc-500">Min RSI</Label>
+              <Label className="text-[10px] text-zinc-500">{t.filters.minRsi}</Label>
               <Input
                 type="number"
                 min={0}
@@ -141,7 +144,7 @@ export function CustomFilterForm({ filters, onChange, onReset }: CustomFilterFor
               />
             </div>
             <div className="w-1/2">
-              <Label className="text-[10px] text-zinc-500">Max RSI</Label>
+              <Label className="text-[10px] text-zinc-500">{t.filters.maxRsi}</Label>
               <Input
                 type="number"
                 min={0}
@@ -157,7 +160,7 @@ export function CustomFilterForm({ filters, onChange, onReset }: CustomFilterFor
         {/* P/E Ratio Slider */}
         <div className="space-y-2">
           <div className="flex justify-between items-center text-xs">
-            <Label className="text-zinc-400 font-medium">Max P/E Ratio</Label>
+            <Label className="text-zinc-400 font-medium">{t.filters.peSlider}</Label>
             <span className="font-mono text-emerald-500 font-semibold">{filters.maxPE}x</span>
           </div>
           <Slider
@@ -169,7 +172,7 @@ export function CustomFilterForm({ filters, onChange, onReset }: CustomFilterFor
           />
           <div className="flex gap-2">
             <div className="w-1/2">
-              <Label className="text-[10px] text-zinc-500">Min P/E</Label>
+              <Label className="text-[10px] text-zinc-500">{t.filters.minPe}</Label>
               <Input
                 type="number"
                 value={filters.minPE}
@@ -178,7 +181,7 @@ export function CustomFilterForm({ filters, onChange, onReset }: CustomFilterFor
               />
             </div>
             <div className="w-1/2">
-              <Label className="text-[10px] text-zinc-500">Max P/E</Label>
+              <Label className="text-[10px] text-zinc-500">{t.filters.maxPe}</Label>
               <Input
                 type="number"
                 value={filters.maxPE}
@@ -192,7 +195,7 @@ export function CustomFilterForm({ filters, onChange, onReset }: CustomFilterFor
         {/* Volume Slider */}
         <div className="space-y-2">
           <div className="flex justify-between items-center text-xs">
-            <Label className="text-zinc-400 font-medium">Max Volume ($M)</Label>
+            <Label className="text-zinc-400 font-medium">{t.filters.volumeSlider}</Label>
             <span className="font-mono text-emerald-500 font-semibold">{filters.maxVolume}M</span>
           </div>
           <Slider
@@ -204,7 +207,7 @@ export function CustomFilterForm({ filters, onChange, onReset }: CustomFilterFor
           />
           <div className="flex gap-2">
             <div className="w-1/2">
-              <Label className="text-[10px] text-zinc-500">Min Vol (M)</Label>
+              <Label className="text-[10px] text-zinc-500">{t.filters.minVol}</Label>
               <Input
                 type="number"
                 value={filters.minVolume}
@@ -213,7 +216,7 @@ export function CustomFilterForm({ filters, onChange, onReset }: CustomFilterFor
               />
             </div>
             <div className="w-1/2">
-              <Label className="text-[10px] text-zinc-500">Max Vol (M)</Label>
+              <Label className="text-[10px] text-zinc-500">{t.filters.maxVol}</Label>
               <Input
                 type="number"
                 value={filters.maxVolume}
@@ -226,17 +229,14 @@ export function CustomFilterForm({ filters, onChange, onReset }: CustomFilterFor
 
         {/* Sector Select */}
         <div className="space-y-2">
-          <Label className="text-zinc-400 text-xs font-medium">Sector Selection</Label>
+          <Label className="text-zinc-400 text-xs font-medium">{t.filters.sectorSelection}</Label>
           <div className="pt-1.5">
-            <Select
-              value={filters.sector}
-              onValueChange={(val) => updateFilter('sector', val)}
-            >
+            <Select value={filters.sector} onValueChange={(val) => updateFilter('sector', val)}>
               <SelectTrigger className="h-9 bg-zinc-950 border-zinc-800 text-zinc-300 text-xs">
-                <SelectValue placeholder="All Sectors" />
+                <SelectValue placeholder={t.filters.allSectors} />
               </SelectTrigger>
               <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-300">
-                <SelectItem value="all">All Sectors</SelectItem>
+                <SelectItem value="all">{t.filters.allSectors}</SelectItem>
                 {SECTORS.map((sec) => (
                   <SelectItem key={sec} value={sec}>
                     {sec}
@@ -247,7 +247,7 @@ export function CustomFilterForm({ filters, onChange, onReset }: CustomFilterFor
           </div>
           <div className="flex items-center gap-1.5 text-[11px] text-zinc-500 pt-3">
             <Filter className="h-3 w-3 text-emerald-500" />
-            <span>Filters are auto-applied on adjustment</span>
+            <span>{t.filters.autoApplied}</span>
           </div>
         </div>
       </div>

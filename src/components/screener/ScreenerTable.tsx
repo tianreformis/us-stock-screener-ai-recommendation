@@ -12,7 +12,9 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
-import { formatCurrency, formatMarketCap, formatPercent, formatNumber } from '@/lib/utils';
+import { useAppearance } from '@/components/screener/AppearanceContext';
+import { formatCurrency, formatMarketCap, formatNumber } from '@/lib/utils';
+import { tf } from '@/lib/translations';
 import { ChevronDown, ChevronUp, Star, ArrowUpDown } from 'lucide-react';
 import { Strategy } from '@/hooks/useStocks';
 
@@ -38,38 +40,45 @@ export function ScreenerTable({
   onSelectStock,
 }: ScreenerTableProps) {
   const { toast } = useToast();
+  const { t } = useAppearance();
 
   const handleWatchlistClick = (e: React.MouseEvent, ticker: string, name: string) => {
     e.stopPropagation(); // Avoid triggering row click modal
-    onToggleWatchlist(ticker);
-    
     const isNowWatched = !watchlist.includes(ticker);
+    onToggleWatchlist(ticker);
+
     toast({
-      title: isNowWatched ? 'Added to Watchlist' : 'Removed from Watchlist',
-      description: `${ticker} (${name}) has been ${isNowWatched ? 'added to' : 'removed from'} your dashboard watchlist.`,
+      title: isNowWatched ? t.toasts.watchAdded : t.toasts.watchRemoved,
+      description: tf(t.toasts.watchDesc, {
+        ticker,
+        name,
+        action: isNowWatched ? t.toasts.watchActionAdd : t.toasts.watchActionRemove,
+      }),
       variant: 'success',
     });
   };
 
   // Dynamically determine all strategy matches for a stock to show colorful badges
-  const getStrategyMatches = (s: any): { id: Strategy; label: string; variant: 'success' | 'info' | 'purple' | 'warning' }[] => {
+  const getStrategyMatches = (
+    s: any
+  ): { id: Strategy; label: string; variant: 'success' | 'info' | 'purple' | 'warning' }[] => {
     const matches = [];
 
     // Scalping
     if (s.volume > 1000000 && s.beta > 1.3 && s.price >= 5 && (s.changePercent > 2 || s.changePercent < -2)) {
-      matches.push({ id: 'scalping' as Strategy, label: '🚀 Scalping', variant: 'warning' as const });
+      matches.push({ id: 'scalping' as Strategy, label: t.table.badgeScalping, variant: 'warning' as const });
     }
     // Swing
     if (s.price > s.sma50 && s.sma50 > s.sma200 && s.rsi14 >= 40 && s.rsi14 <= 60 && s.volume > 500000) {
-      matches.push({ id: 'swing' as Strategy, label: '📈 Swing Pullback', variant: 'info' as const });
+      matches.push({ id: 'swing' as Strategy, label: t.table.badgeSwing, variant: 'info' as const });
     }
     // Momentum
     if (s.price > s.sma20 && s.price > s.sma50 && s.price > s.sma200 && s.rsi14 > 65 && s.price >= 0.95 * s.high52Week) {
-      matches.push({ id: 'momentum' as Strategy, label: '⚡ Momentum', variant: 'success' as const });
+      matches.push({ id: 'momentum' as Strategy, label: t.table.badgeMomentum, variant: 'success' as const });
     }
     // Fundamental
     if (s.pe >= 0 && s.pe <= 25 && s.marketCap > 10000000000 && s.eps > 0 && s.price > s.sma200) {
-      matches.push({ id: 'fundamental' as Strategy, label: '💎 Value Play', variant: 'purple' as const });
+      matches.push({ id: 'fundamental' as Strategy, label: t.table.badgeFundamental, variant: 'purple' as const });
     }
 
     return matches;
@@ -77,16 +86,16 @@ export function ScreenerTable({
 
   const headers = [
     { key: 'watchlist', label: '', sortable: false },
-    { key: 'ticker', label: 'Ticker', sortable: true },
-    { key: 'name', label: 'Company', sortable: true },
-    { key: 'sector', label: 'Sector', sortable: true },
-    { key: 'price', label: 'Price', sortable: true },
-    { key: 'changePercent', label: 'Change %', sortable: true },
-    { key: 'volume', label: 'Volume', sortable: true },
-    { key: 'marketCap', label: 'Market Cap', sortable: true },
-    { key: 'pe', label: 'P/E', sortable: true },
-    { key: 'rsi14', label: 'RSI(14)', sortable: true },
-    { key: 'strategies', label: 'Strategy Badges', sortable: false },
+    { key: 'ticker', label: t.table.ticker, sortable: true },
+    { key: 'name', label: t.table.company, sortable: true },
+    { key: 'sector', label: t.table.sector, sortable: true },
+    { key: 'price', label: t.table.price, sortable: true },
+    { key: 'changePercent', label: t.table.changePercent, sortable: true },
+    { key: 'volume', label: t.table.volume, sortable: true },
+    { key: 'marketCap', label: t.table.marketCap, sortable: true },
+    { key: 'pe', label: t.table.pe, sortable: true },
+    { key: 'rsi14', label: t.table.rsi, sortable: true },
+    { key: 'strategies', label: t.table.badges, sortable: false },
   ];
 
   const renderSortIndicator = (field: string) => {
@@ -126,7 +135,7 @@ export function ScreenerTable({
                 <TableCell colSpan={headers.length} className="h-56 text-center">
                   <div className="flex flex-col items-center justify-center gap-3">
                     <div className="animate-spin h-6 w-6 border-2 border-emerald-500 border-t-transparent rounded-full" />
-                    <span className="text-zinc-500 font-mono text-xs">Querying database matrices...</span>
+                    <span className="text-zinc-500 font-mono text-xs">{t.table.loading}</span>
                   </div>
                 </TableCell>
               </TableRow>
@@ -134,8 +143,8 @@ export function ScreenerTable({
               <TableRow className="border-b border-zinc-900 hover:bg-transparent">
                 <TableCell colSpan={headers.length} className="h-56 text-center">
                   <div className="text-zinc-500 font-mono text-xs flex flex-col gap-2 items-center justify-center">
-                    <span>No quantitative matches found for this filter combination.</span>
-                    <span className="text-[10px] text-zinc-600">Try loosening your custom sliders or choosing a different strategy.</span>
+                    <span>{t.table.noResults}</span>
+                    <span className="text-[10px] text-zinc-600">{t.table.noResultsHint}</span>
                   </div>
                 </TableCell>
               </TableRow>
@@ -237,7 +246,7 @@ export function ScreenerTable({
                             </Badge>
                           ))
                         ) : (
-                          <span className="text-[10px] text-zinc-600 font-mono italic">No clear setup</span>
+                          <span className="text-[10px] text-zinc-600 font-mono italic">{t.table.noSetup}</span>
                         )}
                       </div>
                     </TableCell>
